@@ -1,0 +1,30 @@
+name: Bootstrap repository
+
+on:
+  push:
+    paths:
+      - '.github/bootstrap/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Unpack prepared source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/bootstrap/repo_payload.part* | base64 -d > /tmp/repo.zip
+          unzip -o /tmp/repo.zip -d .
+          rm -rf .github/bootstrap
+          rm -f .github/workflows/bootstrap-repo.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Populate ComfyUI Media Utility v1.0.0 [skip ci]"
+          git push
