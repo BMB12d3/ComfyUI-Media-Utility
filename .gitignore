@@ -1,0 +1,14 @@
+# FFmpeg runtime cache (downloaded locally by setup_ffmpeg.py)
+vendor/ffmpeg/ffmpeg/
+vendor/ffmpeg/core/
+vendor/ffmpeg/installed.json
+
+# Python
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
