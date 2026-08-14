@@ -8,6 +8,10 @@ The goal is simple: handle the quick media jobs that do not justify opening a fu
 
 > This project is a standalone companion utility. It is not a ComfyUI custom node and is not affiliated with the ComfyUI project.
 
+## Video Tutorial
+
+▶ **[Watch the ComfyUI Media Utility tutorial on YouTube](https://youtu.be/ek0YR5BL5pM)**
+
 ## Screenshots
 
 ### Extract / Trim
