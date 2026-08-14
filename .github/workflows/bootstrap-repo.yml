@@ -19,12 +19,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/bootstrap/repo_payload.part* | base64 -d > /tmp/repo.zip
-          unzip -o /tmp/repo.zip -d .
+          cat .github/bootstrap/payload_xz.part* | base64 -d > /tmp/repo.tar.xz
+          tar -xJf /tmp/repo.tar.xz -C .
           mkdir -p docs/screenshots
-          cat .github/bootstrap/extract-trim.jpg.b64.part* | base64 -d > docs/screenshots/extract-trim.jpg
-          cat .github/bootstrap/sort.jpg.b64.part* | base64 -d > docs/screenshots/sort.jpg
-          cat .github/bootstrap/compare.jpg.b64.part* | base64 -d > docs/screenshots/compare.jpg
+          cat .github/bootstrap/screen_extract.part* | base64 -d > docs/screenshots/extract-trim.jpg
+          cat .github/bootstrap/screen_sort.part* | base64 -d > docs/screenshots/sort.jpg
+          cat .github/bootstrap/screen_compare.part* | base64 -d > docs/screenshots/compare.jpg
           rm -rf .github/bootstrap
           rm -f .github/workflows/bootstrap-repo.yml
           git config user.name "github-actions[bot]"
