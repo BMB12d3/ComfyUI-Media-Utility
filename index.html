@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComfyUI Media Utility v1.0.0</title>
+<style>
+  :root{
+    --bg:#0e1013; --bar:#17191e; --panel:#20232a; --line:#30343d;
+    --text:#eef1f5; --muted:#969eaa; --accent:#7aa2ff; --good:#79d69a; --warn:#f4c96b;
+    --font:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"Cascadia Code","Consolas",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+  body{display:flex;flex-direction:column}
+  header{
+    height:54px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;
+    background:var(--bar);border-bottom:1px solid var(--line);box-shadow:0 5px 20px rgba(0,0,0,.22);z-index:10
+  }
+  .brand{display:flex;flex-direction:column;justify-content:center;min-width:190px}
+  .brand b{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--text)}
+  .brand span{font-size:10px;color:var(--muted);margin-top:2px}
+  nav{height:100%;display:flex;align-items:stretch;gap:2px}
+  .tab{
+    min-width:122px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);
+    padding:0 16px;font:600 13px var(--font);cursor:pointer;transition:.14s ease
+  }
+  .tab:hover{background:#1d2026;color:var(--text)}
+  .tab.on{color:var(--text);border-bottom-color:var(--accent);background:#1b1e24}
+  .spacer{flex:1}
+  .status{
+    font:10.5px var(--mono);padding:6px 9px;border:1px solid var(--line);border-radius:999px;
+    color:var(--muted);white-space:nowrap
+  }
+  .status.good{color:var(--good);border-color:#365844}
+  .status.warn{color:var(--warn);border-color:#625332}
+  main{flex:1;min-height:0;position:relative}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#111;display:none}
+  iframe.on{display:block}
+  #directWarning{
+    display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);
+    z-index:50;background:#2a2215;border:1px solid #6a5732;color:#f2d78d;
+    padding:8px 12px;border-radius:8px;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.28)
+  }
+  #directWarning.show{display:block}
+  @media(max-width:760px){
+    .brand span{display:none}.brand{min-width:auto}.tab{min-width:auto;padding:0 10px}
+    .status{display:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <b>COMFYUI MEDIA UTILITY</b>
+    <span>quick media work without opening a full editor</span>
+  </div>
+  <nav>
+    <button class="tab on" data-tab="extract">Extract / Trim</button>
+    <button class="tab" data-tab="sort">Sort</button>
+    <button class="tab" data-tab="compare">Compare</button>
+  </nav>
+  <div class="spacer"></div>
+  <div id="hostStatus" class="status">LOCAL TOOL</div>
+</header>
+<main>
+  <div id="directWarning">For MP4/WAV export, launch with <b>Launch_ComfyUI_Media_Utility.bat</b>.</div>
+  <iframe id="frame-extract" class="on" src="extract_trim.html" allow="autoplay; fullscreen"></iframe>
+  <iframe id="frame-sort" src="sort.html" allow="autoplay; fullscreen"></iframe>
+  <iframe id="frame-compare" src="compare.html" allow="autoplay; fullscreen"></iframe>
+</main>
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll('.tab')];
+  const frames = {
+    extract: document.getElementById('frame-extract'),
+    sort: document.getElementById('frame-sort'),
+    compare: document.getElementById('frame-compare')
+  };
+  let current = localStorage.getItem('comfy-media-last-tab') || 'extract';
+  if (!frames[current]) current = 'extract';
+
+  function notifyVisibility(name, visible){
+    try{
+      frames[name].contentWindow.postMessage({type:'comfy-media-tab-visibility', visible}, location.origin);
+    }catch(_){}
+  }
+
+  function select(name){
+    Object.entries(frames).forEach(([key, frame]) => {
+      const on = key === name;
+      frame.classList.toggle('on', on);
+      notifyVisibility(key, on);
+    });
+    tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+    current = name;
+    localStorage.setItem('comfy-media-last-tab', name);
+  }
+
+  tabs.forEach(b => b.addEventListener('click', () => select(b.dataset.tab)));
+  Object.entries(frames).forEach(([name, frame]) => {
+    frame.addEventListener('load', () => notifyVisibility(name, name === current));
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!e.altKey) return;
+    if (e.key === '1'){ e.preventDefault(); select('extract'); }
+    if (e.key === '2'){ e.preventDefault(); select('sort'); }
+    if (e.key === '3'){ e.preventDefault(); select('compare'); }
+  });
+
+  const status = document.getElementById('hostStatus');
+  const warning = document.getElementById('directWarning');
+  if (location.protocol === 'http:' || location.protocol === 'https:'){
+    status.textContent = location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+      ? 'LOCAL · 127.0.0.1' : 'WEB HOST';
+    status.classList.add('good');
+  } else {
+    status.textContent = 'DIRECT HTML';
+    status.classList.add('warn');
+    warning.classList.add('show');
+  }
+
+  select(current);
+})();
+</script>
+</body>
+</html>

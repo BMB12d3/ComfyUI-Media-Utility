@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comfy Media Utility — Compare</title>
+<style>
+  :root {
+    --bg: #131316;
+    --panel: #1c1c21;
+    --pane: #0c0c0e;
+    --line: #2a2a31;
+    --text: #e8e6e1;
+    --muted: #8a8894;
+    --gold: #d9a441;
+    --gold-dim: rgba(217,164,65,0.14);
+    --ref: #5aa8a0;
+    --danger: #c96a5a;
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ---------- Top bar ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: var(--gold);
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .logo span { color: var(--muted); font-weight: 400; }
+  button, label.btn {
+    background: #26262d;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-family: var(--sans);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  button:hover, label.btn:hover { background: #30303a; border-color: #3d3d48; }
+  button:focus-visible, label.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  button.primary { background: var(--gold); color: #17130a; border-color: var(--gold); font-weight: 600; }
+  button.primary:hover { background: #e5b256; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button:disabled:hover { background: #26262d; border-color: var(--line); }
+  input[type="file"] { display: none; }
+
+  .seg {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .seg button { border: none; border-radius: 0; background: transparent; padding: 6px 12px; }
+  .seg button.on { background: var(--gold-dim); color: var(--gold); font-weight: 600; }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .toggle input { accent-color: var(--gold); cursor: pointer; }
+
+  .view-sync{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:#202027;
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  .view-sync .vs-label{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--muted);
+    letter-spacing:.04em;
+  }
+  .view-sync select{
+    padding:4px 6px;
+    font-size:11px;
+    min-width:92px;
+  }
+  .view-sync .mini-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    color:var(--muted);
+    font-size:11px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .view-sync .mini-toggle input{
+    accent-color:var(--gold);
+    cursor:pointer;
+  }
+  .view-sync.disabled .mini-toggle{
+    opacity:.42;
+  }
+
+  .spacer { flex: 1; }
+  .progress {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .progress b { color: var(--text); font-weight: 600; }
+
+  /* ---------- Arena ---------- */
+  main {
+    flex: 1;
+    display: grid;
+    gap: 6px;
+    padding: 6px;
+    min-height: 0;
+    grid-template-columns: 1fr 22px 1fr;
+  }
+  main.with-ref {
+    grid-template-columns: minmax(0,1fr) var(--ref-width,31%) minmax(0,1fr);
+  }
+  main.with-ref .ref-strip { display: none; }
+
+  /* ---------- Reference drop strip ---------- */
+  .ref-strip {
+    border: 1px dashed #2e4744;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.35em;
+    color: #3d5f5b;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 0;
+  }
+  .ref-strip:hover { border-color: var(--ref); color: var(--ref); }
+  body.drag-active .ref-strip {
+    border-color: var(--ref);
+    color: var(--ref);
+    background: rgba(90,168,160,0.08);
+  }
+  .ref-strip.dragover, .pane.ref-pane.dragover {
+    border-color: var(--ref) !important;
+    background: rgba(90,168,160,0.18);
+    box-shadow: 0 0 0 1px var(--ref), 0 0 20px rgba(90,168,160,0.25);
+  }
+  body.drag-active .pane:not(.ref-pane) { border-color: var(--gold); border-style: dashed; }
+  .pane.ref-pane { transition: box-shadow 0.15s, background 0.15s; }
+
+  .ref-size-control{
+    display:flex;align-items:center;gap:6px;flex-shrink:0;
+    padding:4px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:#202027;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .ref-size-control input[type="range"]{
+    width:92px;
+    accent-color:var(--ref);
+    cursor:pointer;
+  }
+  .ref-size-control .ref-size-value{
+    min-width:28px;
+    text-align:right;
+    color:var(--ref);
+  }
+
+  .pane {
+    position: relative;
+    background: var(--pane);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane.champ { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 24px rgba(217,164,65,0.12); }
+  .pane.ref-pane { border-color: #2e4744; }
+
+  .pane-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 5;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(12,12,14,0.8);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    pointer-events: none;
+  }
+  .pane.champ .pane-tag { color: var(--gold); border-color: var(--gold); background: rgba(30,24,10,0.85); }
+  .pane.ref-pane .pane-tag { color: var(--ref); border-color: #2e4744; }
+
+  .viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+  }
+  .viewport.panning { cursor: grabbing; }
+  .viewport img, .viewport video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    transform-origin: 0 0;
+    will-change: transform;
+    pointer-events: none;
+    image-rendering: auto;
+  }
+  .audio-card {
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    padding:28px; pointer-events:none;
+  }
+  .audio-card-inner {
+    width:min(520px,82%); border:1px solid var(--line); border-radius:14px;
+    background:linear-gradient(180deg,#202027,#151519); padding:28px 30px;
+    text-align:center; box-shadow:0 18px 48px rgba(0,0,0,.28);
+  }
+  .audio-glyph { font-size:52px; color:var(--gold); line-height:1; margin-bottom:12px; }
+  .audio-title {
+    font-family:var(--mono); font-size:12px; color:var(--text); overflow:hidden;
+    white-space:nowrap; text-overflow:ellipsis;
+  }
+  .audio-sub { margin-top:8px; font-size:11px; color:var(--muted); }
+  .listen-btn {
+    padding:4px 9px; font-size:11.5px; color:var(--muted); flex-shrink:0;
+  }
+  .listen-btn.on { color:var(--gold); border-color:rgba(217,164,65,.55); background:var(--gold-dim); }
+  .audio-route button { padding:6px 9px; }
+  .winner-audio-card {
+    width:min(560px,100%); min-height:190px; border:1px solid var(--gold);
+    border-radius:10px; background:var(--pane); display:none; align-items:center;
+    justify-content:center; text-align:center; padding:28px;
+  }
+  .winner-audio-card .audio-glyph { font-size:60px; }
+  .sl-thumb.audio-thumb {
+    display:flex; align-items:center; justify-content:center; color:var(--gold);
+    font-size:24px; font-family:var(--mono);
+  }
+  select {
+    background: #26262d;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 6px;
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+  }
+  select:hover { background: #30303a; }
+  .viewport .empty-msg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4a4a54;
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.6;
+  }
+
+  .pane-foot {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(20,20,24,0.9);
+    border-top: 1px solid var(--line);
+    min-height: 40px;
+  }
+  .fname {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .dims { font-family: var(--mono); font-size: 10.5px; color: #55555f; flex-shrink: 0; }
+  .keep-btn {
+    background: var(--gold-dim);
+    border-color: rgba(217,164,65,0.4);
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .keep-btn:hover { background: rgba(217,164,65,0.25); border-color: var(--gold); }
+  .nav-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .nav-btns button { padding: 4px 10px; font-size: 13px; }
+
+  /* nav arrows overlaid on hover (browse mode) */
+  .edge-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 6;
+    width: 34px; height: 64px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(12,12,14,0.55);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 18px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: pointer;
+  }
+  .edge-arrow.left { left: 8px; }
+  .edge-arrow.right { right: 8px; }
+  .pane:hover .edge-arrow { opacity: 0.85; }
+  .edge-arrow:hover { background: rgba(40,40,48,0.9); }
+
+  /* ---------- Winner overlay ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,12,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .overlay.show { display: flex; }
+  .winner-card {
+    background: var(--panel);
+    border: 1px solid var(--gold);
+    border-radius: 12px;
+    padding: 24px;
+    width: min(760px, 92vw);
+    max-height: 92vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+    box-shadow: 0 0 60px rgba(217,164,65,0.15);
+  }
+  .winner-label {
+    font-family: var(--mono);
+    letter-spacing: 0.2em;
+    font-size: 12px;
+    color: var(--gold);
+  }
+  .winner-card img, .winner-card video {
+    max-width: 100%;
+    max-height: 43vh;
+    border-radius: 8px;
+    object-fit: contain;
+  }
+  .winner-name { font-family: var(--mono); font-size: 13px; color: var(--text); word-break: break-all; text-align: center; }
+  .winner-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  .winner-transfer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding-top: 2px;
+  }
+  .dest-drop {
+    width: 100%;
+    min-height: 78px;
+    border: 1px dashed rgba(217,164,65,0.55);
+    border-radius: 9px;
+    background: rgba(217,164,65,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .dest-drop:hover, .dest-drop:focus-visible {
+    border-color: var(--gold);
+    background: rgba(217,164,65,0.11);
+    outline: none;
+  }
+  .dest-drop.dragover {
+    border-color: var(--gold);
+    background: rgba(217,164,65,0.19);
+    box-shadow: 0 0 0 1px var(--gold), 0 0 24px rgba(217,164,65,0.2);
+  }
+  .dest-drop.ready {
+    border-style: solid;
+    border-color: rgba(90,168,160,0.75);
+    background: rgba(90,168,160,0.08);
+  }
+  .dest-icon { font-size: 26px; flex-shrink: 0; }
+  .dest-copy { min-width: 0; }
+  .dest-title {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dest-sub { margin-top: 4px; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+  .transfer-row { display: flex; align-items: center; justify-content: center; gap: 9px; flex-wrap: wrap; }
+  .transfer-row select { min-width: 116px; }
+  .transfer-note {
+    min-height: 16px;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.4;
+  }
+  .transfer-note.ok { color: var(--ref); }
+  .transfer-note.warn { color: #d9b36a; }
+  .transfer-note.error { color: var(--danger); }
+
+  /* ---------- Footer / shortcuts ---------- */
+  footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 5px 14px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--muted);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  kbd {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: #26262d;
+    border: 1px solid #3a3a44;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text);
+  }
+  .toast {
+    position: fixed;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #26262d;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 12.5px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ---------- Shortlist (top-N keepers) ---------- */
+  .star-btn {
+    flex-shrink: 0;
+    font-size: 15px;
+    line-height: 1;
+    padding: 4px 9px;
+    color: var(--muted);
+  }
+  .star-btn.on {
+    color: var(--gold);
+    border-color: rgba(217,164,65,0.5);
+    background: var(--gold-dim);
+  }
+  #shortlist {
+    display: none;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  #shortlist.has { display: flex; }
+  .sl-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+  .sl-label b { color: var(--text); }
+  .sl-thumbs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 0;
+  }
+  .sl-thumb {
+    position: relative;
+    width: 72px;
+    height: 52px;
+    flex-shrink: 0;
+    border: 1px solid rgba(217,164,65,0.4);
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--pane);
+  }
+  .sl-thumb img, .sl-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+  .sl-thumb .x {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 17px;
+    height: 17px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    line-height: 1;
+    padding: 0;
+    background: rgba(12,12,14,0.85);
+    color: var(--danger);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .sl-thumb:hover .x { display: flex; }
+  .sl-thumb.lg { width: 108px; height: 78px; }
+  .finalists-wrap {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  .finalists-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    color: var(--gold);
+  }
+  .finalists-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 860px) {
+    main.with-ref { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+    .pane.ref-pane { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">COMFY&nbsp;MEDIA <span>/ COMPARE + PICK</span></div>
+
+  <button class="primary" id="folderBtn">📁 Load folder</button>
+  <input type="file" id="folderInput" webkitdirectory multiple>
+
+  <label class="btn" for="refInput">🎯 Reference</label>
+  <input type="file" id="refInput" accept="image/*,video/*,audio/*">
+  <button id="refToggle" disabled title="Show / hide reference (R)">Ref: off</button>
+  <label class="ref-size-control" title="Resize the center Reference panel">
+    Reference Size
+    <input id="refWidthRange" type="range" min="16" max="42" step="1" value="31">
+    <span class="ref-size-value" id="refWidthValue">31%</span>
+  </label>
+
+  <div class="seg">
+    <button id="modeTournament" class="on" title="Loser gets replaced by the next media item">Tournament</button>
+    <button id="modeBrowse" title="Flip through each side independently">Browse</button>
+  </div>
+
+  <div class="view-sync" id="viewSyncControl" title="Choose which panes share view changes, then choose whether Zoom and/or Pan are linked">
+    <span class="vs-label">View Sync</span>
+    <select id="syncScope" title="Which panes should share zoom/pan changes">
+      <option value="all">All 3</option>
+      <option value="candidates" selected>Left + Right</option>
+      <option value="none">None</option>
+    </select>
+    <label class="mini-toggle" title="Apply zoom changes to the selected sync group">
+      <input type="checkbox" id="syncZoom" checked> Zoom
+    </label>
+    <label class="mini-toggle" title="Apply pan changes to the selected sync group">
+      <input type="checkbox" id="syncPan" checked> Pan
+    </label>
+  </div>
+  <button id="resetViewBtn" title="Reset zoom and pan on all visible panes (0)">↺ Reset View</button>
+
+  <button id="playBtn" title="Play / pause all video/audio (Space)">⏸</button>
+  <button id="loopSync" title="Restart all loops together (S)">⟲ Sync</button>
+  <select id="rateSel" title="Playback speed">
+    <option value="0.25">0.25×</option>
+    <option value="0.5">0.5×</option>
+    <option value="1" selected>1×</option>
+    <option value="1.5">1.5×</option>
+    <option value="2">2×</option>
+  </select>
+  <button id="muteBtn" title="Master audio on / off">🔊 Audio on</button>
+  <div class="seg audio-route" id="audioModeSeg" title="Choose how left/right audio is auditioned">
+    <button data-audio="hover" class="on">Hover audio</button>
+    <button data-audio="manual">Select audio</button>
+  </div>
+
+  <div class="spacer"></div>
+  <span class="progress" id="progress"></span>
+  <button id="undoBtn" disabled title="Undo last pick (U)">↩ Undo</button>
+  <button id="clearBtn" title="Remove all loaded comparison media and the reference">✕ Clear</button>
+  <button id="fsBtn" title="Fullscreen (F)">⛶</button>
+</header>
+
+<main id="arena">
+  <!-- Left pane -->
+  <div class="pane" id="paneL">
+    <div class="pane-tag" id="tagL">LEFT</div>
+    <div class="edge-arrow left"  data-pane="L" data-dir="-1" style="display:none">‹</div>
+    <div class="edge-arrow right" data-pane="L" data-dir="1"  style="display:none">›</div>
+    <div class="viewport" id="vpL">
+      <img id="imgL" alt="">
+      <video id="vidL" loop muted playsinline style="display:none"></video>
+      <audio id="audL" loop muted preload="metadata" style="display:none"></audio>
+      <div class="audio-card" id="audioCardL"><div class="audio-card-inner"><div class="audio-glyph">♫</div><div class="audio-title" id="audioTitleL"></div><div class="audio-sub">Audio media · hover or select this side to listen</div></div></div>
+      <div class="empty-msg" id="emptyL">Drag &amp; drop images, videos, or audio (or a whole folder) anywhere to start,<br>or use the Load folder button.<br>Everything stays on your machine — nothing is uploaded.</div>
+    </div>
+    <div class="pane-foot">
+      <div class="fname" id="fnameL"></div>
+      <div class="dims" id="dimsL"></div>
+      <button class="listen-btn" id="listenL" style="display:none" title="Make left audio active">🔈 Listen</button>
+      <button class="star-btn" id="starL" style="display:none" title="Save left to shortlist (1)">☆</button>
+      <button class="keep-btn" id="keepL" style="display:none">◀ Keep this one</button>
+      <div class="nav-btns" id="navL" style="display:none">
+        <button data-pane="L" data-dir="-1">‹</button>
+        <button data-pane="L" data-dir="1">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thin drop bar for the reference image -->
+  <div class="ref-strip" id="refStrip" title="Drop a reference image here (or click to browse)">DROP&nbsp;REF</div>
+
+  <!-- Reference pane (hidden until enabled) -->
+  <div class="pane ref-pane" id="paneR" style="display:none">
+    <div class="pane-tag">REFERENCE</div>
+    <div class="viewport" id="vpR">
+      <img id="imgR" alt="">
+      <video id="vidR" loop muted playsinline style="display:none"></video>
+      <audio id="audR" loop muted preload="metadata" style="display:none"></audio>
+      <div class="audio-card" id="audioCardR"><div class="audio-card-inner"><div class="audio-glyph">♫</div><div class="audio-title" id="audioTitleR"></div><div class="audio-sub">Audio reference · hover or select Reference to listen</div></div></div>
+      <div class="empty-msg" id="emptyR">Load a reference image, video, or audio file.</div>
+    </div>
+    <div class="pane-foot">
+      <div class="fname" id="fnameR"></div>
+      <div class="dims" id="dimsR"></div>
+      <button class="listen-btn" id="listenR" style="display:none" title="Make reference audio active">🔈 Listen</button>
+    </div>
+  </div>
+
+  <!-- Right pane -->
+  <div class="pane" id="paneC">
+    <div class="pane-tag" id="tagC">RIGHT</div>
+    <div class="edge-arrow left"  data-pane="C" data-dir="-1" style="display:none">‹</div>
+    <div class="edge-arrow right" data-pane="C" data-dir="1"  style="display:none">›</div>
+    <div class="viewport" id="vpC">
+      <img id="imgC" alt="">
+      <video id="vidC" loop muted playsinline style="display:none"></video>
+      <audio id="audC" loop muted preload="metadata" style="display:none"></audio>
+      <div class="audio-card" id="audioCardC"><div class="audio-card-inner"><div class="audio-glyph">♫</div><div class="audio-title" id="audioTitleC"></div><div class="audio-sub">Audio media · hover or select this side to listen</div></div></div>
+      <div class="empty-msg" id="emptyC"></div>
+    </div>
+    <div class="pane-foot">
+      <div class="fname" id="fnameC"></div>
+      <div class="dims" id="dimsC"></div>
+      <button class="listen-btn" id="listenC" style="display:none" title="Make right audio active">🔈 Listen</button>
+      <button class="star-btn" id="starC" style="display:none" title="Save right to shortlist (2)">☆</button>
+      <button class="keep-btn" id="keepC" style="display:none">Keep this one ▶</button>
+      <div class="nav-btns" id="navC" style="display:none">
+        <button data-pane="C" data-dir="-1">‹</button>
+        <button data-pane="C" data-dir="1">›</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="shortlist">
+  <span class="sl-label">★ SHORTLIST <b id="slCount">0</b></span>
+  <div class="sl-thumbs" id="slThumbs"></div>
+  <button id="slSend" title="Send everything in the shortlist to a folder">Send ★ …</button>
+  <button id="slClear" title="Unstar everything">✕</button>
+</div>
+
+<footer>
+  <span style="color:var(--ref)">drop media/audio anywhere · drop media ref on center bar</span>
+  <span><kbd>←</kbd> keep left</span>
+  <span><kbd>→</kbd> keep right</span>
+  <span><kbd>space</kbd> play/pause</span>
+  <span><kbd>S</kbd> sync loops</span>
+  <span><kbd>1</kbd>/<kbd>2</kbd> star left/right</span>
+  <span><kbd>U</kbd> undo</span>
+  <span><kbd>R</kbd> reference</span>
+  <span>reference audio: hover / Listen</span>
+  <span><kbd>F</kbd> fullscreen</span>
+  <span><kbd>scroll</kbd> zoom</span>
+  <span><kbd>drag</kbd> pan</span>
+  <span>View Sync: All 3 / Left + Right / None · Zoom and Pan independently</span>
+  <span><kbd>dbl-click</kbd> reset linked view</span>
+  <span><kbd>0</kbd> / Reset View = reset all panes</span>
+  <span>winner: drop destination folder to copy/move</span>
+  <span style="margin-left:auto">Browse mode: <kbd>A</kbd>/<kbd>D</kbd> left pane · <kbd>←</kbd>/<kbd>→</kbd> right pane</span>
+</footer>
+
+<div class="overlay" id="winnerOverlay">
+  <div class="winner-card">
+    <div class="winner-label" id="winnerLabel">★ &nbsp;WINNER&nbsp; ★</div>
+    <img id="winnerImg" alt="Winning media">
+    <video id="winnerVid" loop playsinline style="display:none"></video>
+    <audio id="winnerAud" loop preload="metadata" style="display:none"></audio>
+    <div class="winner-audio-card" id="winnerAudioCard"><div><div class="audio-glyph">♫</div><div>Audio winner</div></div></div>
+    <div class="winner-name" id="winnerName"></div>
+
+    <div class="finalists-wrap" id="finalistsWrap" style="display:none">
+      <div class="finalists-label" id="finalistsLabel"></div>
+      <div class="finalists-row" id="finalistsRow"></div>
+    </div>
+
+    <div class="winner-transfer">
+      <div class="dest-drop" id="destDrop" role="button" tabindex="0" title="Drop a destination folder here">
+        <div class="dest-icon">📂</div>
+        <div class="dest-copy">
+          <div class="dest-title" id="destTitle">Drop the destination folder here</div>
+          <div class="dest-sub" id="destSub">Or click here / use Choose destination. Chrome or Edge works best.</div>
+        </div>
+      </div>
+      <div class="transfer-row">
+        <button id="chooseDest">Choose destination</button>
+        <select id="transferMode" title="Copy the winner, or move it when the source folder is writable">
+          <option value="copy">Copy winner</option>
+          <option value="move">Move winner</option>
+        </select>
+        <button class="primary" id="sendWinner" disabled>Send winner</button>
+      </div>
+      <div class="transfer-note" id="transferNote"></div>
+    </div>
+
+    <div class="winner-actions">
+      <button id="copyName">Copy filename</button>
+      <button id="browseWinner">Browse loaded files</button>
+      <button id="runoffBtn" style="display:none" title="Restart the arena with only these finalists">⚔ Run-off finalists</button>
+      <button id="restart">Run it again</button>
+      <button id="newCompare" title="Clear the current candidates and reference and start a brand-new comparison">＋ New compare</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // ---------- State ----------
+  let images = [];            // media records: image / video / audio
+  let mode = 'tournament';    // 'tournament' | 'browse'
+  let idxL = 0, idxC = 1;     // indices shown in left / right panes
+  let nextIdx = 2;            // next challenger (tournament)
+  let champSide = null;       // 'L' | 'C' — who won the last matchup
+  let history = [];           // undo stack
+  let refURL = null, refName = '';
+  let refVisible = false;
+  let matchNum = 0;
+  let winnerIdx = null;
+  let destDirHandle = null;
+  let sendingWinner = false;
+  let starSeq = 0;            // ordering counter for the shortlist
+  let finaleMode = 'winner';  // 'winner' | 'shortlist' — what the overlay is showing
+  const sourceMeta = new WeakMap(); // File -> writable source handle metadata, when available
+
+  const $ = id => document.getElementById(id);
+  const panes = {
+    L: { vp: $('vpL'), img: $('imgL'), vid: $('vidL'), aud: $('audL'), audioCard: $('audioCardL'), audioTitle: $('audioTitleL'), listen: $('listenL'), fname: $('fnameL'), dims: $('dimsL'), pane: $('paneL'), empty: $('emptyL'), t: {x:0,y:0,s:1} },
+    C: { vp: $('vpC'), img: $('imgC'), vid: $('vidC'), aud: $('audC'), audioCard: $('audioCardC'), audioTitle: $('audioTitleC'), listen: $('listenC'), fname: $('fnameC'), dims: $('dimsC'), pane: $('paneC'), empty: $('emptyC'), t: {x:0,y:0,s:1} },
+    R: { vp: $('vpR'), img: $('imgR'), vid: $('vidR'), aud: $('audR'), audioCard: $('audioCardR'), audioTitle: $('audioTitleR'), listen: $('listenR'), fname: $('fnameR'), dims: $('dimsR'), pane: $('paneR'), empty: $('emptyR'), t: {x:0,y:0,s:1} }
+  };
+
+  // Global synchronized playback plus one-at-a-time audio routing.
+  let vidPlaying = true, vidRate = 1;
+  let audioEnabled = true;
+  let audioMode = 'hover';      // 'hover' | 'manual'
+  let activeAudioSide = null;   // current hover target
+  let manualAudioSide = null;   // selected Listen button
+
+  function panePlayer(p) {
+    if (p.vid.style.display !== 'none' && p.vid.src) return p.vid;
+    if (p.aud && p.aud.src) return p.aud;
+    return null;
+  }
+
+  function activePlayers() {
+    const list = [];
+    ['L','C','R'].forEach(s => {
+      const p = panes[s];
+      if (p.pane.style.display === 'none') return;
+      const player = panePlayer(p);
+      if (player) list.push(player);
+    });
+    if ($('winnerOverlay').classList.contains('show')) {
+      const wv = $('winnerVid'), wa = $('winnerAud');
+      if (wv.style.display !== 'none' && wv.src) list.push(wv);
+      if (wa && wa.src) list.push(wa);
+    }
+    return list;
+  }
+
+  function audibleSide() {
+    if (!audioEnabled) return null;
+    return audioMode === 'hover' ? activeAudioSide : manualAudioSide;
+  }
+
+  function updateListenButtons() {
+    ['L','C','R'].forEach(side => {
+      const b = panes[side].listen;
+      if (!b) return;
+      const on = audioEnabled && audibleSide() === side;
+      b.classList.toggle('on', on);
+      b.textContent = on ? '🔊 Audio' : '🔈 Listen';
+    });
+  }
+
+  function applyAudioRouting() {
+    const hear = audibleSide();
+    const overlayOpen = $('winnerOverlay').classList.contains('show');
+    ['L','C','R'].forEach(side => {
+      const p = panes[side];
+      const visible = p.pane.style.display !== 'none';
+      const unmute = !overlayOpen && visible && side === hear;
+      p.vid.muted = !unmute;
+      if (p.aud) p.aud.muted = !unmute;
+    });
+    $('winnerVid').muted = !(audioEnabled && overlayOpen);
+    if ($('winnerAud')) $('winnerAud').muted = !(audioEnabled && overlayOpen);
+    $('muteBtn').textContent = audioEnabled ? '🔊 Audio on' : '🔇 Audio off';
+    updateListenButtons();
+  }
+
+  function activateAudioSide(side, manual = false) {
+    if (manual) manualAudioSide = manualAudioSide === side ? null : side;
+    else activeAudioSide = side;
+    applyAudioRouting();
+    const p = panes[side];
+    const player = panePlayer(p);
+    if (player && vidPlaying) player.play().catch(() => {});
+  }
+
+  // ---------- Helpers ----------
+  const naturalSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function applyTransform(p) {
+    const t = `translate(${p.t.x}px, ${p.t.y}px) scale(${p.t.s})`;
+    p.img.style.transform = t;
+    if (p.vid) p.vid.style.transform = t;
+  }
+  function resetView(p) { p.t = {x:0, y:0, s:1}; applyTransform(p); }
+  function resetAllViews() {
+    Object.values(panes)
+      .filter(p => p.pane.style.display !== 'none')
+      .forEach(resetView);
+  }
+
+  function stopPaneMedia(p) {
+    p.vid.pause(); p.vid.removeAttribute('src'); p.vid.style.display = 'none';
+    if (p.aud) { p.aud.pause(); p.aud.removeAttribute('src'); p.aud.style.display = 'none'; }
+    if (p.audioCard) p.audioCard.style.display = 'none';
+    p.img.src = ''; p.img.style.display = 'none';
+  }
+
+  function setImage(side, idx) {
+    const p = panes[side];
+    if (idx == null || !images[idx]) {
+      stopPaneMedia(p);
+      p.fname.textContent = '';
+      p.dims.textContent = '';
+      if (p.listen) p.listen.style.display = 'none';
+      applyAudioRouting();
+      return;
+    }
+    const rec = images[idx];
+    p.empty.style.display = 'none';
+    p.fname.textContent = rec.name;
+    p.dims.textContent = '';
+    stopPaneMedia(p);
+
+    if (rec.kind === 'vid') {
+      p.vid.style.display = '';
+      p.vid.src = rec.url;
+      p.vid.muted = true;
+      p.vid.playbackRate = vidRate;
+      p.vid.onloadedmetadata = () => {
+        p.dims.textContent = p.vid.videoWidth + '×' + p.vid.videoHeight + ' · ' + p.vid.duration.toFixed(1) + 's';
+        p.vid.playbackRate = vidRate;
+      };
+      if (vidPlaying) p.vid.play().catch(() => {});
+      if (p.listen) p.listen.style.display = '';
+    } else if (rec.kind === 'aud') {
+      p.aud.src = rec.url;
+      p.aud.muted = true;
+      p.aud.playbackRate = vidRate;
+      p.audioCard.style.display = 'flex';
+      p.audioTitle.textContent = rec.name;
+      p.aud.onloadedmetadata = () => {
+        p.dims.textContent = p.aud.duration.toFixed(1) + 's · audio';
+        p.aud.playbackRate = vidRate;
+      };
+      if (vidPlaying) p.aud.play().catch(() => {});
+      if (p.listen) p.listen.style.display = '';
+    } else {
+      p.img.style.display = '';
+      p.img.src = rec.url;
+      p.img.onload = () => { p.dims.textContent = p.img.naturalWidth + '×' + p.img.naturalHeight; };
+      if (p.listen) p.listen.style.display = 'none';
+    }
+    resetView(p);
+    updateStarBtns();
+    applyAudioRouting();
+  }
+  function updateProgress() {
+    const el = $('progress');
+    if (!images.length) { el.textContent = ''; return; }
+    const stars = images.filter(r => r.starred).length;
+    const starTxt = stars ? ` · ★ <b>${stars}</b>` : '';
+    if (mode === 'tournament') {
+      const done = Math.min(nextIdx, images.length);
+      el.innerHTML = `match <b>${matchNum + 1}</b> · seen <b>${done}</b> / ${images.length}` + starTxt;
+    } else {
+      el.innerHTML = `<b>${images.length}</b> media loaded` + starTxt;
+    }
+  }
+
+  function updateChampHighlight() {
+    panes.L.pane.classList.toggle('champ', champSide === 'L');
+    panes.C.pane.classList.toggle('champ', champSide === 'C');
+    $('tagL').textContent = champSide === 'L' ? '★ KEEPER' : 'LEFT';
+    $('tagC').textContent = champSide === 'C' ? '★ KEEPER' : 'RIGHT';
+  }
+
+  function refreshModeUI() {
+    const tourn = mode === 'tournament';
+    $('modeTournament').classList.toggle('on', tourn);
+    $('modeBrowse').classList.toggle('on', !tourn);
+    $('keepL').style.display = tourn && images.length > 1 ? '' : 'none';
+    $('keepC').style.display = tourn && images.length > 1 ? '' : 'none';
+    $('starL').style.display = images.length ? '' : 'none';
+    $('starC').style.display = images.length > 1 ? '' : 'none';
+    $('navL').style.display = !tourn ? '' : 'none';
+    $('navC').style.display = !tourn ? '' : 'none';
+    document.querySelectorAll('.edge-arrow').forEach(a => a.style.display = !tourn && images.length ? '' : 'none');
+    $('undoBtn').disabled = !(tourn && history.length);
+    updateProgress();
+    if (!tourn) { champSide = null; updateChampHighlight(); }
+  }
+
+  // ---------- Loading ----------
+  const IMG_RE = /\.(png|jpe?g|webp|gif|bmp|avif|tiff?)$/i;
+  const VID_RE = /\.(mp4|webm|mov|m4v|ogv|mkv|avi|mpg|mpeg|wmv)$/i;
+  const AUD_RE = /\.(wav|mp3|flac|m4a|aac|ogg|opus|wma|aiff?|alac)$/i;
+  const isImage = f => IMG_RE.test(f.name) || (f.type && f.type.startsWith('image/'));
+  const isVideo = f => VID_RE.test(f.name) || (f.type && f.type.startsWith('video/'));
+  const isAudio = f => AUD_RE.test(f.name) || (f.type && f.type.startsWith('audio/'));
+  const isMedia = f => isImage(f) || isVideo(f) || isAudio(f);
+  const makeRec = f => ({
+    file: f,
+    url: URL.createObjectURL(f),
+    name: f.name,
+    kind: isVideo(f) ? 'vid' : isAudio(f) ? 'aud' : 'img',
+    source: sourceMeta.get(f) || null,
+    starred: false,
+    starOrder: 0
+  });
+
+  function addImages(files, { replace = false } = {}) {
+    const imgs = files.filter(isMedia);
+    if (!imgs.length) { toast('No supported image, video, or audio media in that selection'); return; }
+
+    if (replace || !images.length) {
+      images.forEach(r => URL.revokeObjectURL(r.url));
+      images = imgs.map(makeRec);
+      images.sort(naturalSort);
+      startFresh();
+      toast(images.length + ' files loaded');
+      return;
+    }
+
+    // Append to the existing set (dedupe by name + size), without disturbing the current run
+    const seen = new Set(images.map(r => r.name + '|' + r.file.size));
+    let added = 0;
+    imgs.forEach(f => {
+      const key = f.name + '|' + f.size;
+      if (seen.has(key)) return;
+      seen.add(key);
+      images.push(makeRec(f));
+      added++;
+    });
+    if (!added) { toast('Those media files are already loaded'); return; }
+
+    if (images.length >= 2 && idxC == null) {
+      // We only had one image before — kick things off properly now
+      startFresh();
+    } else if ($('winnerOverlay').classList.contains('show') && nextIdx < images.length) {
+      // Tournament had finished — resume with the champion vs the new contender
+      hideWinner();
+      if (champSide === 'C') { idxL = nextIdx++; setImage('L', idxL); }
+      else { idxC = nextIdx++; setImage('C', idxC); }
+    }
+    updateProgress();
+    toast('+' + added + ' added (' + images.length + ' total)');
+  }
+
+  async function walkDirectoryHandle(dirHandle, out, prefix = '') {
+    for await (const [name, handle] of dirHandle.entries()) {
+      const relativePath = prefix ? prefix + '/' + name : name;
+      if (handle.kind === 'file') {
+        try {
+          const f = await handle.getFile();
+          sourceMeta.set(f, { fileHandle: handle, parentHandle: dirHandle, relativePath });
+          out.push(f);
+        } catch {}
+      } else if (handle.kind === 'directory') {
+        await walkDirectoryHandle(handle, out, relativePath);
+      }
+    }
+  }
+
+  $('folderBtn').addEventListener('click', async () => {
+    if (!window.showDirectoryPicker) {
+      $('folderInput').click();
+      return;
+    }
+    try {
+      // Read/write access means the Move option can delete the original later.
+      const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const files = [];
+      await walkDirectoryHandle(dir, files);
+      addImages(files, { replace: true });
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      toast('Could not open writable folder — using standard picker');
+      $('folderInput').click();
+    }
+  });
+
+  $('folderInput').addEventListener('change', e => {
+    addImages([...e.target.files], { replace: true });
+    e.target.value = '';
+  });
+
+  function clearLoadedCompare({ clearRef = true, toastMessage = 'Cleared media + reference' } = {}) {
+    hideWinner();
+
+    images.forEach(r => URL.revokeObjectURL(r.url));
+    images = [];
+    idxL = 0; idxC = 1; nextIdx = 2; champSide = null; history = []; matchNum = 0;
+    winnerIdx = null;
+    finaleMode = 'winner';
+    starSeq = 0;
+    activeAudioSide = null;
+    manualAudioSide = null;
+
+    ['L','C'].forEach(s => {
+      const p = panes[s];
+      stopPaneMedia(p);
+      if (p.listen) p.listen.style.display = 'none';
+      p.fname.textContent = ''; p.dims.textContent = '';
+      p.empty.style.display = '';
+      resetView(p);
+    });
+
+    if (clearRef) clearReference();
+
+    $('folderInput').value = '';
+    renderShortlist();
+    updateChampHighlight();
+    refreshModeUI();
+    applyAudioRouting();
+    if (toastMessage) toast(toastMessage);
+  }
+
+  $('clearBtn').addEventListener('click', () => {
+    clearLoadedCompare({ clearRef: true, toastMessage: 'Cleared media + reference' });
+  });
+
+  function startNewCompare() {
+    clearLoadedCompare({ clearRef: true, toastMessage: '' });
+    mode = 'tournament';
+    destDirHandle = null;
+    sendingWinner = false;
+    $('transferMode').value = 'copy';
+    setTransferNote('');
+    updateTransferUI();
+    refreshModeUI();
+    toast('Ready for a new compare');
+  }
+
+  // ---------- Drag & drop ----------
+  function walkEntry(entry, out) {
+    return new Promise(res => {
+      if (entry.isFile) {
+        entry.file(f => { out.push(f); res(); }, () => res());
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const readBatch = () => reader.readEntries(async ents => {
+          if (!ents.length) return res();
+          await Promise.all(ents.map(e => walkEntry(e, out)));
+          readBatch(); // readEntries returns results in batches
+        }, () => res());
+        readBatch();
+      } else res();
+    });
+  }
+
+  async function filesFromDrop(dt) {
+    const out = [];
+    const jobs = [];
+    // Snapshot everything synchronously — Chromium invalidates DataTransfer
+    // objects after the drop handler yields.
+    const items = dt.items ? [...dt.items] : [];
+    const plainFiles = dt.files ? [...dt.files] : [];
+
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      const directFile = item.getAsFile ? item.getAsFile() : null;
+      const handlePromise = item.getAsFileSystemHandle ? item.getAsFileSystemHandle() : null;
+
+      if (handlePromise) {
+        jobs.push((async () => {
+          try {
+            const handle = await handlePromise;
+            if (!handle) throw new Error('No handle');
+            if (handle.kind === 'directory') {
+              await walkDirectoryHandle(handle, out);
+            } else {
+              const f = await handle.getFile();
+              // A standalone dropped file has no parent directory handle, so it
+              // can be copied but cannot be deleted automatically for a true move.
+              sourceMeta.set(f, { fileHandle: handle, parentHandle: null, relativePath: f.name });
+              out.push(f);
+            }
+          } catch {
+            if (entry && entry.isDirectory) await walkEntry(entry, out);
+            else if (directFile) out.push(directFile);
+          }
+        })());
+      } else if (entry && entry.isDirectory) {
+        jobs.push(walkEntry(entry, out));
+      } else if (directFile) {
+        out.push(directFile);
+      }
+    }
+
+    await Promise.all(jobs);
+    return out.length ? out : plainFiles;
+  }
+
+  ['dragenter', 'dragover'].forEach(ev =>
+    document.addEventListener(ev, e => {
+      e.preventDefault();
+      document.body.classList.add('drag-active');
+    })
+  );
+  document.addEventListener('dragleave', e => {
+    if (!e.relatedTarget) document.body.classList.remove('drag-active');
+  });
+  document.addEventListener('drop', async e => {
+    e.preventDefault();
+    document.body.classList.remove('drag-active');
+    const files = await filesFromDrop(e.dataTransfer);
+    addImages(files);
+  });
+
+  // Reference drop targets: the thin strip and the reference pane itself
+  const refTargets = [$('refStrip'), panes.R.pane];
+  refTargets.forEach(el => {
+    el.addEventListener('dragover', e => {
+      e.preventDefault(); e.stopPropagation();
+      document.body.classList.add('drag-active');
+      el.classList.add('dragover');
+    });
+    el.addEventListener('dragleave', e => { e.stopPropagation(); el.classList.remove('dragover'); });
+    el.addEventListener('drop', async e => {
+      e.preventDefault(); e.stopPropagation();
+      document.body.classList.remove('drag-active');
+      el.classList.remove('dragover');
+      const files = await filesFromDrop(e.dataTransfer);
+      const media = files.find(isMedia);
+      if (media) setReference(media);
+      else toast('That didn\u2019t look like supported media');
+    });
+  });
+  $('refStrip').addEventListener('click', () => $('refInput').click());
+
+  function startFresh() {
+    const hadStars = images.some(r => r.starred);
+    images.forEach(r => { r.starred = false; r.starOrder = 0; });
+    starSeq = 0;
+    if (hadStars) toast('Shortlist cleared for the new run');
+    idxL = 0; idxC = images.length > 1 ? 1 : null;
+    nextIdx = 2; champSide = null; history = []; matchNum = 0;
+    winnerIdx = null;
+    renderShortlist();
+    setImage('L', idxL); setImage('C', idxC);
+    if (images.length === 1) panes.C.empty.style.display = '';
+    updateChampHighlight();
+    refreshModeUI();
+    hideWinner();
+  }
+
+  function clearReference() {
+    const p = panes.R;
+
+    if (refURL) {
+      try { URL.revokeObjectURL(refURL); } catch {}
+    }
+    refURL = null;
+    refName = '';
+    refVisible = false;
+
+    stopPaneMedia(p);
+    if (p.listen) p.listen.style.display = 'none';
+    p.fname.textContent = '';
+    p.dims.textContent = '';
+    p.empty.style.display = '';
+    resetView(p);
+
+    p.pane.style.display = 'none';
+    $('arena').classList.remove('with-ref');
+    $('refToggle').textContent = 'Ref: off';
+    $('refToggle').disabled = true;
+    $('refInput').value = '';
+
+    if (activeAudioSide === 'R') activeAudioSide = null;
+    if (manualAudioSide === 'R') manualAudioSide = null;
+    applyAudioRouting();
+  }
+
+  function setReference(f) {
+    if (!isMedia(f)) { toast('That didn\u2019t look like supported image, video, or audio media'); return; }
+    if (refURL) URL.revokeObjectURL(refURL);
+    refURL = URL.createObjectURL(f);
+    refName = f.name;
+    const p = panes.R;
+    p.empty.style.display = 'none';
+    p.fname.textContent = refName;
+    p.dims.textContent = '';
+    stopPaneMedia(p);
+    if (p.listen) p.listen.style.display = 'none';
+
+    if (isVideo(f)) {
+      p.vid.style.display = '';
+      p.vid.src = refURL;
+      p.vid.muted = true;
+      p.vid.playbackRate = vidRate;
+      p.vid.onloadedmetadata = () => {
+        p.dims.textContent = p.vid.videoWidth + '×' + p.vid.videoHeight + ' · ' + p.vid.duration.toFixed(1) + 's';
+      };
+      if (vidPlaying) p.vid.play().catch(() => {});
+      if (p.listen) p.listen.style.display = '';
+    } else if (isAudio(f)) {
+      p.aud.src = refURL;
+      p.aud.muted = true;
+      p.aud.playbackRate = vidRate;
+      p.audioCard.style.display = 'flex';
+      p.audioTitle.textContent = refName;
+      p.aud.onloadedmetadata = () => { p.dims.textContent = p.aud.duration.toFixed(1) + 's · audio reference'; };
+      if (vidPlaying) p.aud.play().catch(() => {});
+      if (p.listen) p.listen.style.display = '';
+    } else {
+      p.img.style.display = '';
+      p.img.src = refURL;
+      p.img.onload = () => { p.dims.textContent = p.img.naturalWidth + '×' + p.img.naturalHeight; };
+    }
+    resetView(p);
+    $('refToggle').disabled = false;
+    if (!refVisible) toggleRef();
+    applyAudioRouting();
+    toast('Reference set: ' + refName);
+  }
+  $('refInput').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) setReference(f);
+    e.target.value = '';
+  });
+
+  function toggleRef() {
+    if (!refURL) { toast('Load a reference media file first'); return; }
+    refVisible = !refVisible;
+    const p = panes.R;
+    p.pane.style.display = refVisible ? '' : 'none';
+    $('arena').classList.toggle('with-ref', refVisible);
+    $('refToggle').textContent = refVisible ? 'Ref: on' : 'Ref: off';
+
+    const player = panePlayer(p);
+    if (!refVisible) {
+      if (player) player.pause();
+      if (activeAudioSide === 'R') activeAudioSide = null;
+      if (manualAudioSide === 'R') manualAudioSide = null;
+    } else if (player && vidPlaying) {
+      player.play().catch(() => {});
+    }
+    applyAudioRouting();
+  }
+  $('refToggle').addEventListener('click', toggleRef);
+
+  const refWidthRange = $('refWidthRange');
+  const refWidthValue = $('refWidthValue');
+  const savedRefWidth = Number(localStorage.getItem('comfy-media-ref-width'));
+  const initialRefWidth = Number.isFinite(savedRefWidth) && savedRefWidth >= 16 && savedRefWidth <= 42
+    ? savedRefWidth : 31;
+
+  function setReferenceWidth(value) {
+    const pct = Math.max(16, Math.min(42, Number(value) || 31));
+    $('arena').style.setProperty('--ref-width', pct + '%');
+    refWidthRange.value = String(pct);
+    refWidthValue.textContent = pct + '%';
+    localStorage.setItem('comfy-media-ref-width', String(pct));
+  }
+  refWidthRange.addEventListener('input', e => setReferenceWidth(e.target.value));
+  setReferenceWidth(initialRefWidth);
+
+  // ---------- Shortlist (top-N keepers) ----------
+  function starredRecs() {
+    return images.filter(r => r.starred).sort((a, b) => a.starOrder - b.starOrder);
+  }
+
+  function toggleStar(side) {
+    const idx = side === 'L' ? idxL : idxC;
+    const rec = idx == null ? null : images[idx];
+    if (!rec) return;
+    rec.starred = !rec.starred;
+    if (rec.starred) rec.starOrder = ++starSeq;
+    renderShortlist();
+    toast(rec.starred ? '★ Saved to shortlist' : 'Removed from shortlist');
+  }
+
+  function updateStarBtns() {
+    [['L', idxL], ['C', idxC]].forEach(([s, idx]) => {
+      const b = $('star' + s);
+      if (!b) return;
+      const rec = idx == null ? null : images[idx];
+      const on = !!(rec && rec.starred);
+      b.classList.toggle('on', on);
+      b.textContent = on ? '★' : '☆';
+      b.title = (on ? 'Remove from shortlist' : 'Save to shortlist') + (s === 'L' ? ' (1)' : ' (2)');
+    });
+  }
+
+  function buildThumb(rec, large = false) {
+    const d = document.createElement('div');
+    d.className = 'sl-thumb' + (large ? ' lg' : '');
+    d.title = rec.name;
+    let media;
+    if (rec.kind === 'vid') {
+      media = document.createElement('video');
+      media.src = rec.url;
+      media.muted = true;
+      media.preload = 'metadata';
+      media.playsInline = true;
+      d.appendChild(media);
+    } else if (rec.kind === 'aud') {
+      d.classList.add('audio-thumb');
+      const glyph = document.createElement('span');
+      glyph.textContent = '♫';
+      d.appendChild(glyph);
+    } else {
+      media = document.createElement('img');
+      media.src = rec.url;
+      d.appendChild(media);
+    }
+    const x = document.createElement('button');
+    x.className = 'x';
+    x.textContent = '✕';
+    x.title = 'Remove from shortlist';
+    x.addEventListener('click', e => {
+      e.stopPropagation();
+      rec.starred = false;
+      renderShortlist();
+    });
+    d.appendChild(x);
+    return d;
+  }
+
+  function renderShortlist() {
+    const list = starredRecs();
+    $('shortlist').classList.toggle('has', list.length > 0);
+    const wrap = $('slThumbs');
+    wrap.innerHTML = '';
+    list.forEach(rec => wrap.appendChild(buildThumb(rec)));
+    $('slCount').textContent = list.length;
+    updateStarBtns();
+    updateProgress();
+    if ($('winnerOverlay').classList.contains('show')) renderFinalists();
+  }
+
+  function selectionRecs() {
+    const starred = starredRecs();
+    if (finaleMode === 'shortlist') return starred;
+    const w = currentWinner();
+    if (!w) return starred;
+    return [w, ...starred.filter(r => r !== w)];
+  }
+
+  function renderFinalists() {
+    const w = finaleMode === 'winner' ? currentWinner() : null;
+    const list = starredRecs().filter(r => r !== w);
+    const row = $('finalistsRow');
+    row.innerHTML = '';
+    list.forEach(rec => row.appendChild(buildThumb(rec, true)));
+    $('finalistsWrap').style.display = list.length ? '' : 'none';
+    $('finalistsLabel').textContent = finaleMode === 'winner'
+      ? `★ ALSO SENDING — ${list.length} FROM THE SHORTLIST`
+      : `${list.length} SAVED KEEPER${list.length === 1 ? '' : 'S'}`;
+    $('runoffBtn').style.display = selectionRecs().length >= 2 ? '' : 'none';
+    updateTransferUI(true);
+  }
+
+  function showShortlistFinale() {
+    if (!starredRecs().length) { toast('Star some media first'); return; }
+    finaleMode = 'shortlist';
+    const wi = $('winnerImg'), wv = $('winnerVid'), wa = $('winnerAud');
+    wi.style.display = 'none'; wi.src = '';
+    wv.pause(); wv.removeAttribute('src'); wv.style.display = 'none';
+    wa.pause(); wa.removeAttribute('src'); wa.style.display = 'none';
+    $('winnerAudioCard').style.display = 'none';
+    $('winnerName').style.display = 'none';
+    $('copyName').style.display = 'none';
+    $('winnerLabel').innerHTML = '★ &nbsp;SHORTLIST&nbsp; ★';
+    $('winnerOverlay').classList.add('show');
+    renderFinalists();
+    updateTransferUI();
+    applyAudioRouting();
+  }
+
+  function runoffFinalists() {
+    const keep = selectionRecs();
+    if (keep.length < 2) return;
+    const keepSet = new Set(keep);
+    images.forEach(r => { if (!keepSet.has(r)) URL.revokeObjectURL(r.url); });
+    images = keep;
+    images.sort(naturalSort);
+    hideWinner();
+    setMode('tournament');
+    toast('Run-off: ' + images.length + ' finalists');
+  }
+
+  // ---------- Tournament ----------
+  function pick(winnerSide) {
+    if (mode !== 'tournament' || images.length < 2) return;
+    if (idxC == null) return;
+    history.push({ idxL, idxC, nextIdx, champSide, matchNum });
+    champSide = winnerSide;
+    matchNum++;
+    if (nextIdx >= images.length) { showWinner(winnerSide === 'L' ? idxL : idxC); return; }
+    if (winnerSide === 'L') { idxC = nextIdx; setImage('C', idxC); }
+    else { idxL = nextIdx; setImage('L', idxL); }
+    nextIdx++;
+    updateChampHighlight();
+    updateProgress();
+    $('undoBtn').disabled = false;
+  }
+
+  function undo() {
+    if (!history.length) return;
+    const s = history.pop();
+    ({ idxL, idxC, nextIdx, champSide, matchNum } = s);
+    setImage('L', idxL); setImage('C', idxC);
+    updateChampHighlight(); updateProgress();
+    hideWinner();
+    $('undoBtn').disabled = !history.length;
+  }
+
+  function showWinner(idx) {
+    winnerIdx = idx;
+    finaleMode = 'winner';
+    $('winnerLabel').innerHTML = '★ &nbsp;WINNER&nbsp; ★';
+    $('winnerName').style.display = '';
+    $('copyName').style.display = '';
+    const rec = images[idx];
+    const wi = $('winnerImg'), wv = $('winnerVid'), wa = $('winnerAud'), ac = $('winnerAudioCard');
+
+    wi.style.display = 'none'; wi.src = '';
+    wv.pause(); wv.removeAttribute('src'); wv.style.display = 'none';
+    wa.pause(); wa.removeAttribute('src'); wa.style.display = 'none';
+    ac.style.display = 'none';
+
+    if (rec.kind === 'vid') {
+      wv.style.display = '';
+      wv.src = rec.url;
+      wv.muted = !audioEnabled;
+      wv.playbackRate = vidRate;
+      if (vidPlaying) wv.play().catch(() => {});
+    } else if (rec.kind === 'aud') {
+      wa.src = rec.url;
+      wa.muted = !audioEnabled;
+      wa.playbackRate = vidRate;
+      ac.style.display = 'flex';
+      if (vidPlaying) wa.play().catch(() => {});
+    } else {
+      wi.style.display = '';
+      wi.src = rec.url;
+    }
+    $('winnerName').textContent = rec.name;
+    $('winnerOverlay').classList.add('show');
+    renderFinalists();
+    updateTransferUI();
+    updateChampHighlight();
+    applyAudioRouting();
+  }
+
+  function hideWinner() {
+    const wv = $('winnerVid'), wa = $('winnerAud');
+    wv.pause();
+    wa.pause();
+    $('winnerOverlay').classList.remove('show');
+    applyAudioRouting();
+  }
+  // ---------- Send winner to destination folder ----------
+  function setTransferNote(msg = '', kind = '') {
+    const note = $('transferNote');
+    note.textContent = msg;
+    note.className = 'transfer-note' + (kind ? ' ' + kind : '');
+  }
+
+  function currentWinner() {
+    return winnerIdx == null ? null : images[winnerIdx] || null;
+  }
+
+  function updateTransferUI(preserveNote = false) {
+    const recs = selectionRecs();
+    $('sendWinner').disabled = !destDirHandle || !recs.length || sendingWinner;
+
+    if (!sendingWinner) {
+      const w = finaleMode === 'winner' ? currentWinner() : null;
+      const extra = recs.length - (w ? 1 : 0);
+      $('sendWinner').textContent = w
+        ? (extra > 0 ? `Send winner + ${extra}` : 'Send winner')
+        : `Send ${recs.length} file${recs.length === 1 ? '' : 's'}`;
+    }
+
+    if (destDirHandle) {
+      $('destDrop').classList.add('ready');
+      $('destTitle').textContent = 'Destination: ' + destDirHandle.name;
+      $('destSub').textContent = 'Drop another folder here to change it.';
+    } else {
+      $('destDrop').classList.remove('ready');
+      $('destTitle').textContent = 'Drop the destination folder here';
+      $('destSub').textContent = 'Or click here / use Choose destination. Chrome or Edge works best.';
+    }
+
+    if (!recs.length || sendingWinner || preserveNote) return;
+    if ($('transferMode').value === 'move') {
+      const locked = recs.filter(r => !(r.source && r.source.parentHandle)).length;
+      if (!locked) {
+        setTransferNote(recs.length === 1
+          ? 'Move is available: the original can be removed after the copy succeeds.'
+          : `Move is available for all ${recs.length} files.`);
+      } else {
+        setTransferNote(`${locked} of ${recs.length} lack writable folder access — those will be copied, but the originals may not be deletable.`, 'warn');
+      }
+    } else {
+      setTransferNote(recs.length === 1
+        ? 'The file will be copied with its original filename.'
+        : `All ${recs.length} files will be copied with their original filenames.`);
+    }
+  }
+
+  async function ensureReadWritePermission(handle) {
+    if (!handle) return false;
+    const opts = { mode: 'readwrite' };
+    try {
+      if (!handle.queryPermission || await handle.queryPermission(opts) === 'granted') return true;
+      return !!handle.requestPermission && await handle.requestPermission(opts) === 'granted';
+    } catch {
+      return false;
+    }
+  }
+
+  async function setDestination(handle) {
+    if (!handle || handle.kind !== 'directory') {
+      setTransferNote('Please drop a folder, not a file.', 'error');
+      return false;
+    }
+    if (!await ensureReadWritePermission(handle)) {
+      setTransferNote('Write access to that folder was not granted.', 'error');
+      return false;
+    }
+    destDirHandle = handle;
+    updateTransferUI();
+    setTransferNote('Destination ready: ' + handle.name, 'ok');
+    toast('Destination set: ' + handle.name);
+    return true;
+  }
+
+  async function chooseDestination() {
+    if (!window.showDirectoryPicker) {
+      setTransferNote('Writable folder selection is not supported here. Open this HTML file in current Chrome or Edge.', 'error');
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      await setDestination(handle);
+    } catch (err) {
+      if (!err || err.name !== 'AbortError') {
+        setTransferNote('Could not open that destination folder.', 'error');
+      }
+    }
+  }
+
+  async function directoryHandleFromDrop(dt) {
+    const items = dt.items ? [...dt.items] : [];
+    const handlePromises = [];
+    for (const item of items) {
+      if (item.kind === 'file' && item.getAsFileSystemHandle) {
+        // Must be invoked before this event handler yields.
+        handlePromises.push(item.getAsFileSystemHandle());
+      }
+    }
+    for (const promise of handlePromises) {
+      try {
+        const handle = await promise;
+        if (handle && handle.kind === 'directory') return handle;
+      } catch {}
+    }
+    return null;
+  }
+
+  async function fileExists(dirHandle, name) {
+    try {
+      await dirHandle.getFileHandle(name);
+      return true;
+    } catch (err) {
+      if (err && err.name === 'NotFoundError') return false;
+      throw err;
+    }
+  }
+
+  function splitFilename(name) {
+    const dot = name.lastIndexOf('.');
+    if (dot <= 0) return { stem: name, ext: '' };
+    return { stem: name.slice(0, dot), ext: name.slice(dot) };
+  }
+
+  async function availableFilename(dirHandle, originalName) {
+    if (!await fileExists(dirHandle, originalName)) return originalName;
+    const { stem, ext } = splitFilename(originalName);
+    for (let n = 2; n < 10000; n++) {
+      const candidate = `${stem} (${n})${ext}`;
+      if (!await fileExists(dirHandle, candidate)) return candidate;
+    }
+    throw new Error('Could not find an available filename');
+  }
+
+  async function sameDirectory(a, b) {
+    if (!a || !b || !a.isSameEntry) return false;
+    try { return await a.isSameEntry(b); }
+    catch { return false; }
+  }
+
+  async function sendSelection() {
+    const recs = selectionRecs();
+    if (!recs.length || !destDirHandle || sendingWinner) return;
+
+    const action = $('transferMode').value;
+    sendingWinner = true;
+    $('sendWinner').disabled = true;
+
+    let sent = 0, failed = 0, skippedSame = 0, copiedNoDelete = 0;
+    try {
+      if (!await ensureReadWritePermission(destDirHandle)) {
+        throw new Error('Destination permission was not granted');
+      }
+
+      for (let i = 0; i < recs.length; i++) {
+        const rec = recs[i];
+        $('sendWinner').textContent = (action === 'move' ? 'Moving ' : 'Copying ') + (i + 1) + '/' + recs.length + '…';
+        setTransferNote((action === 'move' ? 'Moving ' : 'Copying ') + rec.name + '…');
+
+        const sourceParent = rec.source && rec.source.parentHandle;
+        if (action === 'move' && sourceParent && await sameDirectory(sourceParent, destDirHandle)) {
+          skippedSame++;
+          continue;
+        }
+
+        try {
+          const outputName = await availableFilename(destDirHandle, rec.file.name);
+          const outputHandle = await destDirHandle.getFileHandle(outputName, { create: true });
+          const writable = await outputHandle.createWritable();
+          await writable.write(rec.file);
+          await writable.close();
+
+          let moved = false;
+          if (action === 'move' && sourceParent && sourceParent.removeEntry) {
+            if (await ensureReadWritePermission(sourceParent)) {
+              try {
+                await sourceParent.removeEntry(rec.file.name);
+                moved = true;
+              } catch {}
+            }
+          }
+          if (action === 'move' && !moved) copiedNoDelete++;
+          sent++;
+        } catch (err) {
+          console.error(err);
+          failed++;
+        }
+      }
+
+      const parts = [];
+      if (sent) parts.push(`${sent} sent to ${destDirHandle.name}`);
+      if (copiedNoDelete) parts.push(`${copiedNoDelete} copied but original not deletable`);
+      if (skippedSame) parts.push(`${skippedSame} already in that folder`);
+      if (failed) parts.push(`${failed} failed`);
+      setTransferNote(parts.join(' · ') || 'Nothing needed sending.',
+        failed ? 'error' : (copiedNoDelete || skippedSame) ? 'warn' : 'ok');
+      toast(failed ? 'Some files failed to send' : `Sent ${sent} file${sent === 1 ? '' : 's'}`);
+    } catch (err) {
+      console.error(err);
+      setTransferNote('Could not send. Check folder permission and available disk space.', 'error');
+      toast('Send failed');
+    } finally {
+      sendingWinner = false;
+      updateTransferUI(true);
+    }
+  }
+
+  const destDrop = $('destDrop');
+  ['dragenter', 'dragover'].forEach(ev => destDrop.addEventListener(ev, e => {
+    e.preventDefault();
+    e.stopPropagation();
+    destDrop.classList.add('dragover');
+  }));
+  destDrop.addEventListener('dragleave', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    destDrop.classList.remove('dragover');
+  });
+  destDrop.addEventListener('drop', async e => {
+    e.preventDefault();
+    e.stopPropagation();
+    destDrop.classList.remove('dragover');
+    document.body.classList.remove('drag-active');
+    const handle = await directoryHandleFromDrop(e.dataTransfer);
+    if (handle) await setDestination(handle);
+    else setTransferNote('That folder drop did not provide writable access. Use Choose destination instead.', 'error');
+  });
+  destDrop.addEventListener('click', chooseDestination);
+  destDrop.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      chooseDestination();
+    }
+  });
+  $('chooseDest').addEventListener('click', chooseDestination);
+  $('sendWinner').addEventListener('click', sendSelection);
+  $('transferMode').addEventListener('change', () => updateTransferUI());
+
+  // ---------- Synchronized video/audio playback controls ----------
+  function setPlaying(v) {
+    vidPlaying = v;
+    $('playBtn').textContent = v ? '⏸' : '▶';
+    activePlayers().forEach(x => v ? x.play().catch(() => {}) : x.pause());
+    applyAudioRouting();
+  }
+  function restartLoops() {
+    activePlayers().forEach(x => {
+      x.currentTime = 0;
+      if (vidPlaying) x.play().catch(() => {});
+    });
+    applyAudioRouting();
+  }
+  $('playBtn').addEventListener('click', () => setPlaying(!vidPlaying));
+  $('loopSync').addEventListener('click', restartLoops);
+  $('rateSel').addEventListener('change', e => {
+    vidRate = +e.target.value;
+    activePlayers().forEach(x => x.playbackRate = vidRate);
+  });
+  $('muteBtn').addEventListener('click', () => {
+    audioEnabled = !audioEnabled;
+    applyAudioRouting();
+  });
+
+  $('audioModeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button[data-audio]');
+    if (!b) return;
+    audioMode = b.dataset.audio;
+    activeAudioSide = null;
+    if (audioMode === 'hover') manualAudioSide = null;
+    $('audioModeSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    applyAudioRouting();
+    toast(audioMode === 'hover' ? 'Audio follows the pane you hover — Left, Reference, or Right' : 'Use Listen on Left, Reference, or Right');
+  });
+
+  ['L','C','R'].forEach(side => {
+    const p = panes[side];
+    p.pane.addEventListener('mouseenter', () => {
+      if (audioMode !== 'hover') return;
+      activateAudioSide(side, false);
+    });
+    p.pane.addEventListener('mouseleave', () => {
+      if (audioMode !== 'hover' || activeAudioSide !== side) return;
+      activeAudioSide = null;
+      applyAudioRouting();
+    });
+    p.listen.addEventListener('click', e => {
+      e.stopPropagation();
+      if (audioMode !== 'manual') {
+        audioMode = 'manual';
+        $('audioModeSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.audio === 'manual'));
+      }
+      activateAudioSide(side, true);
+    });
+  });
+  $('keepL').addEventListener('click', () => pick('L'));
+  $('keepC').addEventListener('click', () => pick('C'));
+  $('starL').addEventListener('click', () => toggleStar('L'));
+  $('starC').addEventListener('click', () => toggleStar('C'));
+  $('slSend').addEventListener('click', showShortlistFinale);
+  $('slClear').addEventListener('click', () => {
+    if (!starredRecs().length) return;
+    images.forEach(r => { r.starred = false; });
+    renderShortlist();
+    toast('Shortlist cleared');
+  });
+  $('runoffBtn').addEventListener('click', runoffFinalists);
+  $('undoBtn').addEventListener('click', undo);
+  $('restart').addEventListener('click', () => startFresh());
+  $('newCompare').addEventListener('click', startNewCompare);
+  $('browseWinner').addEventListener('click', () => {
+    hideWinner();
+    setMode('browse');
+  });
+  $('copyName').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('winnerName').textContent); toast('Filename copied'); }
+    catch { toast('Copy blocked — select the name manually'); }
+  });
+
+  // ---------- Browse ----------
+  function step(side, dir) {
+    if (!images.length) return;
+    if (side === 'L') { idxL = (idxL + dir + images.length) % images.length; setImage('L', idxL); }
+    else { idxC = ((idxC ?? 0) + dir + images.length) % images.length; setImage('C', idxC); }
+  }
+  document.querySelectorAll('.edge-arrow, .nav-btns button').forEach(b => {
+    b.addEventListener('click', () => step(b.dataset.pane, +b.dataset.dir));
+  });
+
+  // ---------- Mode ----------
+  function setMode(m) {
+    mode = m;
+    if (m === 'tournament' && images.length) startFresh();
+    refreshModeUI();
+  }
+  $('modeTournament').addEventListener('click', () => setMode('tournament'));
+  $('modeBrowse').addEventListener('click', () => setMode('browse'));
+
+  // ---------- Zoom & pan ----------
+  function paneKey(origin) {
+    return Object.entries(panes).find(([, p]) => p === origin)?.[0] || null;
+  }
+
+  function visiblePane(side) {
+    const p = panes[side];
+    return p && p.pane.style.display !== 'none';
+  }
+
+  function syncGroup(origin, behavior) {
+    const enabled = behavior === 'zoom' ? $('syncZoom').checked : $('syncPan').checked;
+    if (!enabled) return [origin];
+
+    const scope = $('syncScope').value;
+    if (scope === 'none') return [origin];
+
+    const side = paneKey(origin);
+
+    if (scope === 'candidates') {
+      // Left + Right behave as a pair; Reference remains fully independent.
+      if (side === 'L' || side === 'C') {
+        return ['L','C'].filter(visiblePane).map(s => panes[s]);
+      }
+      return [origin];
+    }
+
+    // All 3 — preserve the original app behavior.
+    return ['L','R','C'].filter(visiblePane).map(s => panes[s]);
+  }
+
+  function resetGroup(origin) {
+    // A double-click is a full-view reset. If either Zoom or Pan is linked,
+    // reset the selected sync group; if both are independent, reset only origin.
+    const anySync = $('syncZoom').checked || $('syncPan').checked;
+    if (!anySync || $('syncScope').value === 'none') return [origin];
+
+    const side = paneKey(origin);
+    if ($('syncScope').value === 'candidates') {
+      if (side === 'L' || side === 'C') {
+        return ['L','C'].filter(visiblePane).map(s => panes[s]);
+      }
+      return [origin];
+    }
+    return ['L','R','C'].filter(visiblePane).map(s => panes[s]);
+  }
+
+  function updateViewSyncUI() {
+    const none = $('syncScope').value === 'none';
+    $('viewSyncControl').classList.toggle('disabled', none);
+    $('syncZoom').disabled = none;
+    $('syncPan').disabled = none;
+
+    localStorage.setItem('comfy-media-sync-scope-v2', $('syncScope').value);
+    localStorage.setItem('comfy-media-sync-zoom', $('syncZoom').checked ? '1' : '0');
+    localStorage.setItem('comfy-media-sync-pan', $('syncPan').checked ? '1' : '0');
+  }
+
+  // Restore the user's preferred comparison-view behavior.
+  const savedSyncScope = localStorage.getItem('comfy-media-sync-scope-v2');
+  const savedSyncZoom = localStorage.getItem('comfy-media-sync-zoom');
+  const savedSyncPan = localStorage.getItem('comfy-media-sync-pan');
+
+  if (['all','candidates','none'].includes(savedSyncScope)) {
+    $('syncScope').value = savedSyncScope;
+  } else {
+    $('syncScope').value = 'candidates';
+  }
+  if (savedSyncZoom !== null) $('syncZoom').checked = savedSyncZoom === '1';
+  if (savedSyncPan !== null) $('syncPan').checked = savedSyncPan === '1';
+
+  $('syncScope').addEventListener('change', updateViewSyncUI);
+  $('syncZoom').addEventListener('change', updateViewSyncUI);
+  $('syncPan').addEventListener('change', updateViewSyncUI);
+  updateViewSyncUI();
+
+  Object.values(panes).forEach(p => {
+    p.vp.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = p.vp.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const newS = Math.min(12, Math.max(1, p.t.s * factor));
+      const real = newS / p.t.s;
+
+      syncGroup(p, 'zoom').forEach(q => {
+        const ns = Math.min(12, Math.max(1, q.t.s * real));
+        const r = ns / q.t.s;
+
+        // Zoom around the same proportional point in every linked pane.
+        const qr = q.vp.getBoundingClientRect();
+        const qx = (mx / rect.width) * qr.width;
+        const qy = (my / rect.height) * qr.height;
+        q.t.x = qx - r * (qx - q.t.x);
+        q.t.y = qy - r * (qy - q.t.y);
+        q.t.s = ns;
+
+        if (q.t.s === 1) {
+          q.t.x = 0;
+          q.t.y = 0;
+        }
+        applyTransform(q);
+      });
+    }, { passive: false });
+
+    let panning = false, px = 0, py = 0;
+    p.vp.addEventListener('pointerdown', e => {
+      panning = true;
+      px = e.clientX;
+      py = e.clientY;
+      p.vp.classList.add('panning');
+      p.vp.setPointerCapture(e.pointerId);
+    });
+
+    p.vp.addEventListener('pointermove', e => {
+      if (!panning) return;
+
+      const dx = e.clientX - px;
+      const dy = e.clientY - py;
+      px = e.clientX;
+      py = e.clientY;
+
+      syncGroup(p, 'pan').forEach(q => {
+        if (q.t.s <= 1) return;
+        q.t.x += dx;
+        q.t.y += dy;
+        applyTransform(q);
+      });
+    });
+
+    const endPan = () => {
+      panning = false;
+      p.vp.classList.remove('panning');
+    };
+
+    p.vp.addEventListener('pointerup', endPan);
+    p.vp.addEventListener('pointercancel', endPan);
+    p.vp.addEventListener('dblclick', () => resetGroup(p).forEach(resetView));
+  });
+
+  // ---------- Keyboard ----------
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+    const k = e.key;
+    if (k === 'ArrowLeft') {
+      e.preventDefault();
+      if (e.shiftKey) toggleStar('L');
+      else mode === 'tournament' ? pick('L') : step('C', -1);
+    } else if (k === 'ArrowRight') {
+      e.preventDefault();
+      if (e.shiftKey) toggleStar('C');
+      else mode === 'tournament' ? pick('C') : step('C', 1);
+    } else if (k === '1') {
+      toggleStar('L');
+    } else if (k === '2') {
+      toggleStar('C');
+    } else if (k === 'a' || k === 'A') {
+      if (mode === 'browse') step('L', -1);
+    } else if (k === 'd' || k === 'D') {
+      if (mode === 'browse') step('L', 1);
+    } else if (k === ' ') {
+      e.preventDefault();
+      setPlaying(!vidPlaying);
+    } else if (k === 's' || k === 'S') {
+      restartLoops();
+    } else if (k === 'u' || k === 'U') {
+      undo();
+    } else if (k === 'r' || k === 'R') {
+      toggleRef();
+    } else if (k === 'f' || k === 'F') {
+      document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    } else if (k === 'Escape') {
+      hideWinner();
+    } else if (k === '0') {
+      resetAllViews();
+    }
+  });
+
+  $('resetViewBtn').addEventListener('click', () => {
+    resetAllViews();
+    toast('View reset');
+  });
+
+  $('fsBtn').addEventListener('click', () => {
+    document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  });
+
+
+  // ---------- Host integration ----------
+  let hostResumePlayback = false;
+  window.addEventListener('message', e => {
+    if (!e.data || e.data.type !== 'comfy-media-tab-visibility') return;
+    if (!e.data.visible) {
+      hostResumePlayback = vidPlaying;
+      setPlaying(false);
+    } else if (hostResumePlayback) {
+      hostResumePlayback = false;
+      setPlaying(true);
+    }
+  });
+
+  applyAudioRouting();
+  refreshModeUI();
+})();
+</script>
+</body>
+</html>

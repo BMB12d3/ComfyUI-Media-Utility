@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="move">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comfy Media Utility — Sort</title>
+<style>
+  :root{
+    --ink:#16181d;          /* app chrome */
+    --well:#0a0b0e;         /* viewing well */
+    --panel:#1d2027;
+    --panel-2:#232733;
+    --line:#2c303a;
+    --text:#e8e6e1;
+    --dim:#8b8f9a;
+    --danger:#e05d5d;
+    --radius:10px;
+    --font-ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --font-data:"Cascadia Code","Consolas",ui-monospace,Menlo,monospace;
+  }
+  /* The mode IS the accent: amber when moving, cyan when copying */
+  html[data-mode="move"]{ --accent:#e6a23c; --accent-soft:rgba(230,162,60,.14); --accent-ink:#1c1204; }
+  html[data-mode="copy"]{ --accent:#4cc2b0; --accent-soft:rgba(76,194,176,.14); --accent-ink:#04201b; }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background:var(--ink); color:var(--text); font-family:var(--font-ui);
+    display:flex; flex-direction:column; overflow:hidden; font-size:14px;
+  }
+  button{ font-family:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+  button:focus-visible, input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 16px; border-bottom:1px solid var(--line); flex:none;
+  }
+  .wordmark{
+    font-family:var(--font-data); font-size:13px; letter-spacing:.28em;
+    color:var(--dim); user-select:none; white-space:nowrap;
+  }
+  .wordmark b{ color:var(--accent); font-weight:600; }
+  .chip{
+    display:flex; align-items:center; gap:8px; max-width:260px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:7px 12px; font-size:13px; transition:border-color .15s;
+  }
+  .chip:hover{ border-color:var(--accent); }
+  .chip .lbl{ color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; flex:none; }
+  .chip .val{ font-family:var(--font-data); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip .val.empty{ color:var(--dim); font-style:italic; }
+
+  .seg{ display:flex; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; flex:none; }
+  .seg button{
+    padding:7px 14px; font-size:12.5px; color:var(--dim); letter-spacing:.02em;
+    border-right:1px solid var(--line); transition:background .12s,color .12s;
+  }
+  .seg button:last-child{ border-right:none; }
+  .seg button.on{ background:var(--accent); color:var(--accent-ink); font-weight:600; }
+  .seg.mode button.on{ text-transform:uppercase; letter-spacing:.06em; }
+  .spacer{ flex:1; }
+
+  #progressbar{ height:2px; background:var(--line); flex:none; }
+  #progressbar i{ display:block; height:100%; width:0%; background:var(--accent); transition:width .2s; }
+
+  /* ── Layout ─────────────────────────────────────────── */
+  main{ flex:1; display:flex; min-height:0; }
+
+  /* Viewing well */
+  #wellwrap{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  #well{
+    flex:1; position:relative; min-height:0; background:var(--well);
+    background-image:radial-gradient(ellipse at center, rgba(255,255,255,.025), transparent 70%);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  #well img, #well video{
+    max-width:100%; max-height:100%; object-fit:contain; display:block;
+  }
+  .audio-card{
+    width:min(620px,82%); padding:30px 34px; border:1px solid var(--line);
+    border-radius:16px; background:linear-gradient(180deg,var(--panel),#14161b);
+    box-shadow:0 18px 50px rgba(0,0,0,.25); text-align:center;
+  }
+  .audio-card .audio-icon{ font-size:52px; margin-bottom:10px; }
+  .audio-card .audio-name{
+    font-family:var(--font-data); font-size:13px; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:18px;
+  }
+  .audio-card audio{ width:100%; display:block; }
+  .audio-card .audio-note{ margin-top:12px; color:var(--dim); font-size:11.5px; }
+  .fade-in{ animation:fadein .14s ease-out; }
+  @media (prefers-reduced-motion: reduce){ .fade-in{ animation:none; } }
+  @keyframes fadein{ from{ opacity:0; } to{ opacity:1; } }
+
+  .well-card{
+    text-align:center; color:var(--dim); max-width:440px; padding:24px; line-height:1.6;
+  }
+  .well-card h2{ font-size:17px; color:var(--text); font-weight:600; margin-bottom:10px; }
+  .well-card .big{ font-family:var(--font-data); font-size:34px; color:var(--accent); margin-bottom:12px; }
+  .well-card button.cta{
+    margin-top:14px; background:var(--accent); color:var(--accent-ink); font-weight:600;
+    border-radius:var(--radius); padding:9px 18px; font-size:13.5px;
+  }
+  .well-card button.ghost{
+    margin-top:10px; border:1px solid var(--line); border-radius:var(--radius);
+    padding:8px 16px; font-size:13px; color:var(--text); display:inline-block; margin-left:8px;
+  }
+
+  /* File bar */
+  #filebar{
+    flex:none; display:flex; align-items:center; gap:14px;
+    padding:9px 16px; border-top:1px solid var(--line); min-height:40px;
+  }
+  #fname{ font-family:var(--font-data); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #fmeta{ color:var(--dim); font-size:12px; white-space:nowrap; font-family:var(--font-data); }
+  #fpos{ margin-left:auto; color:var(--dim); font-size:12px; font-family:var(--font-data); white-space:nowrap; }
+  #fpos b{ color:var(--accent); font-weight:600; }
+
+  /* ── Sidebar ────────────────────────────────────────── */
+  aside{
+    width:320px; flex:none; border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0; background:var(--ink);
+  }
+  .side-head{
+    padding:12px 14px 8px; flex:none; font-size:11px; text-transform:uppercase;
+    letter-spacing:.12em; color:var(--dim);
+  }
+  .side-head b{ color:var(--accent); font-weight:600; }
+  #folderlist{ flex:1; overflow-y:auto; padding:0 10px 10px; min-height:0; }
+  #folderlist::-webkit-scrollbar{ width:8px; }
+  #folderlist::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .fbtn{
+    width:100%; display:flex; align-items:center; gap:10px; text-align:left;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:9px 10px; margin-bottom:6px; transition:border-color .1s, background .1s;
+  }
+  .fbtn:hover{ border-color:var(--accent); background:var(--panel-2); }
+  .fbtn:active{ background:var(--accent-soft); }
+  .fbtn kbd{
+    font-family:var(--font-data); font-size:11px; flex:none;
+    min-width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+    background:var(--well); border:1px solid var(--line); border-radius:5px; color:var(--accent);
+  }
+  .fbtn .fn{ flex:1; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fbtn .fc{ font-family:var(--font-data); font-size:11px; color:var(--dim); flex:none; }
+  .fbtn .fc:empty{ display:none; }
+
+  #newfolderrow{ padding:0 10px; flex:none; }
+  #newfolderbtn{
+    width:100%; border:1px dashed var(--line); border-radius:var(--radius);
+    padding:8px; color:var(--dim); font-size:12.5px; margin-bottom:6px; transition:color .1s,border-color .1s;
+  }
+  #newfolderbtn:hover{ color:var(--accent); border-color:var(--accent); }
+  #newfolderinput{
+    width:100%; background:var(--well); border:1px solid var(--accent); border-radius:var(--radius);
+    color:var(--text); font-family:var(--font-ui); font-size:13px; padding:8px 10px;
+    margin-bottom:6px; display:none;
+  }
+
+  /* Trash: always a MOVE into a Trash folder inside the source — reject pile, undoable */
+  #trashrow{ padding:0 10px; flex:none; }
+  #trashBtn{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:var(--panel); color:var(--danger);
+    padding:9px 8px; font-size:13px; margin-bottom:6px;
+    transition:border-color .1s, background .1s;
+  }
+  #trashBtn:hover:not(:disabled){ border-color:var(--danger); background:rgba(224,93,93,.10); }
+  #trashBtn:disabled{ opacity:.4; cursor:default; }
+  #trashBtn svg{ flex:none; }
+  #trashBtn kbd{
+    font-family:var(--font-data); font-size:10.5px; color:var(--dim);
+    border:1px solid var(--line); border-radius:4px; padding:1px 5px;
+  }
+
+  .side-actions{
+    flex:none; display:flex; gap:6px; padding:8px 10px; border-top:1px solid var(--line);
+  }
+  .side-actions button{
+    flex:1; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel);
+    padding:9px 6px; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:border-color .1s;
+  }
+  .side-actions button:hover:not(:disabled){ border-color:var(--accent); }
+  .side-actions button:disabled{ opacity:.4; cursor:default; }
+  .side-actions kbd{
+    font-family:var(--font-data); font-size:10.5px; color:var(--dim);
+    border:1px solid var(--line); border-radius:4px; padding:1px 5px;
+  }
+  #stats{
+    flex:none; padding:8px 14px 12px; color:var(--dim); font-size:11.5px;
+    font-family:var(--font-data); line-height:1.7;
+  }
+
+  /* ── Toast ──────────────────────────────────────────── */
+  /* Drop overlay: drag a folder anywhere — left half = source, right half = destination */
+  #dropoverlay{
+    position:fixed; inset:0; z-index:100; display:none;
+    background:rgba(10,11,14,.78); padding:0;
+  }
+  #dropoverlay.show{ display:flex; }
+  .dropzone{
+    flex:1; margin:16px; border:2px dashed var(--line); border-radius:16px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    color:var(--dim); transition:border-color .1s, background .1s; pointer-events:none;
+  }
+  .dropzone .dz-big{ font-size:16px; font-weight:600; color:var(--text); letter-spacing:.02em; }
+  .dropzone .dz-sub{ font-size:12.5px; }
+  .dropzone.hot{ border-color:var(--accent); background:var(--accent-soft); }
+  .dropzone.hot .dz-big{ color:var(--accent); }
+
+  #toast{
+    position:fixed; bottom:56px; left:50%; transform:translateX(-50%) translateY(8px);
+    background:var(--panel-2); border:1px solid var(--accent); color:var(--text);
+    border-radius:var(--radius); padding:8px 16px; font-size:13px; opacity:0;
+    pointer-events:none; transition:opacity .15s, transform .15s; max-width:70vw;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; z-index:50;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  #toast.err{ border-color:var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">COMFY&nbsp;MEDIA<b>&nbsp;/&nbsp;SORT</b></div>
+  <button class="chip" id="srcChip" title="Click to browse — or drag the folder onto the left half of the window">
+    <span class="lbl">Source</span><span class="val empty" id="srcName">choose folder…</span>
+  </button>
+  <button class="chip" id="dstChip" title="Click to browse — or drag the master folder onto the right half of the window">
+    <span class="lbl">Sort into</span><span class="val empty" id="dstName">choose folder…</span>
+  </button>
+  <div class="seg" id="filterSeg" title="Which file types to show">
+    <button data-f="all" class="on">All</button>
+    <button data-f="image">Images</button>
+    <button data-f="video">Videos</button>
+    <button data-f="audio">Audio</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg mode" id="modeSeg" title="Master setting: what a folder button does">
+    <button data-m="move" class="on">Move</button>
+    <button data-m="copy">Copy</button>
+  </div>
+</header>
+<div id="progressbar"><i id="progressfill"></i></div>
+
+<main>
+  <section id="wellwrap">
+    <div id="well"></div>
+    <div id="filebar">
+      <span id="fname"></span>
+      <span id="fmeta"></span>
+      <span id="fpos"></span>
+    </div>
+  </section>
+
+  <aside>
+    <div class="side-head"><b id="verb">Move</b> to folder</div>
+    <div id="folderlist"></div>
+    <div id="newfolderrow">
+      <input id="newfolderinput" placeholder="New folder name — Enter to create" spellcheck="false">
+      <button id="newfolderbtn">+ New folder</button>
+    </div>
+    <div id="trashrow">
+      <button id="trashBtn" title="Move this file to a Trash folder inside your source folder — undoable, not a permanent delete">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        Trash this file <kbd>Del</kbd>
+      </button>
+    </div>
+    <div class="side-actions">
+      <button id="prevBtn" title="Back to previous skipped file">◀ Back <kbd>←</kbd></button>
+      <button id="skipBtn" title="Skip this file for now">Skip ▶ <kbd>→</kbd></button>
+      <button id="undoBtn" title="Undo the last move/copy" disabled>Undo <kbd>Z</kbd></button>
+    </div>
+    <div id="stats"></div>
+  </aside>
+</main>
+
+<div id="dropoverlay">
+  <div class="dropzone" id="dzSrc">
+    <div class="dz-big">Source</div>
+    <div class="dz-sub">drop the folder of unsorted media here</div>
+  </div>
+  <div class="dropzone" id="dzDst">
+    <div class="dz-big">Sort into</div>
+    <div class="dz-sub">drop the master folder of labeled folders here</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ── State ──────────────────────────────────────────────── */
+const IMG_EXT = new Set(["png","jpg","jpeg","webp","gif","bmp","avif","tif","tiff","jfif"]);
+const VID_EXT = new Set(["mp4","m4v","mov","webm","mkv","avi","mpg","mpeg","wmv"]);
+const AUD_EXT = new Set(["wav","mp3","flac","m4a","aac","ogg","opus","wma","aiff","aif","alac"]);
+const HOTKEYS = ["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P"];
+const TRASH_NAME = "Trash";   // auto-created inside the source folder on first trash
+
+let srcDir = null, dstDir = null;
+let trashDir = null;          // cached handle for source/Trash, reset when the source changes
+let queue = [];            // {handle,name,size,type,done,skipped,url}
+let idx = -1;
+let folders = [];          // {handle,name,count}
+let mode = "move";
+let filter = "all";
+let history = [];          // {qi, finalName, destFolder, mode}
+let mutedPref = false;
+let busy = false;
+
+const $ = id => document.getElementById(id);
+const well = $("well");
+
+/* ── Helpers ────────────────────────────────────────────── */
+function toast(msg, isErr){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.toggle("err", !!isErr);
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+function extOf(name){ const d = name.lastIndexOf("."); return d < 0 ? "" : name.slice(d+1).toLowerCase(); }
+function typeOf(name){
+  const e = extOf(name);
+  if(IMG_EXT.has(e)) return "image";
+  if(VID_EXT.has(e)) return "video";
+  if(AUD_EXT.has(e)) return "audio";
+  return null;
+}
+function fmtBytes(b){
+  if(b >= 1e9) return (b/1e9).toFixed(2)+" GB";
+  if(b >= 1e6) return (b/1e6).toFixed(1)+" MB";
+  if(b >= 1e3) return (b/1e3).toFixed(0)+" KB";
+  return b+" B";
+}
+function fmtDur(s){
+  if(!isFinite(s)) return "";
+  const m = Math.floor(s/60), sec = Math.round(s%60);
+  return m+":"+String(sec).padStart(2,"0");
+}
+async function ensureRW(handle){
+  if(await handle.queryPermission({mode:"readwrite"}) === "granted") return true;
+  return (await handle.requestPermission({mode:"readwrite"})) === "granted";
+}
+async function fileExists(dir, name){
+  try{ await dir.getFileHandle(name); return true; }catch{ return false; }
+}
+async function uniqueName(dir, name){
+  if(!await fileExists(dir, name)) return name;
+  const d = name.lastIndexOf(".");
+  const base = d > 0 ? name.slice(0,d) : name;
+  const ext  = d > 0 ? name.slice(d) : "";
+  let n = 1, cand;
+  do{ cand = `${base} (${n++})${ext}`; } while(await fileExists(dir, cand));
+  return cand;
+}
+async function copyInto(srcHandle, destFolder, destName){
+  const file = await srcHandle.getFile();
+  const out = await destFolder.getFileHandle(destName, {create:true});
+  const writable = await out.createWritable();
+  await file.stream().pipeTo(writable);   // pipeTo closes the writable
+}
+
+/* ── Folder pickers ─────────────────────────────────────── */
+async function adoptSource(h){
+  srcDir = h;
+  trashDir = null;                                               // new source → new Trash folder
+  try{ await h.requestPermission({mode:"readwrite"}); }catch{}   // ok if deferred; re-asked on first move
+  $("srcName").textContent = h.name; $("srcName").classList.remove("empty");
+  await scanSource();
+  await refreshFolders();     // re-check "same as source" exclusion
+}
+async function adoptDest(h){
+  dstDir = h;
+  try{ await h.requestPermission({mode:"readwrite"}); }catch{}   // ok if deferred; re-asked on first sort
+  $("dstName").textContent = h.name; $("dstName").classList.remove("empty");
+  await refreshFolders();
+}
+async function pickSource(){
+  try{
+    const h = await showDirectoryPicker({id:"mediasorter-src", mode:"readwrite"});
+    await adoptSource(h);
+  }catch(e){ if(e.name !== "AbortError") toast(e.message, true); }
+}
+async function pickDest(){
+  try{
+    const h = await showDirectoryPicker({id:"mediasorter-dst", mode:"readwrite"});
+    await adoptDest(h);
+  }catch(e){ if(e.name !== "AbortError") toast(e.message, true); }
+}
+async function scanSource(){
+  queue = []; history = []; $("undoBtn").disabled = true;
+  const items = [];
+  for await (const entry of srcDir.values()){
+    if(entry.kind !== "file") continue;
+    const t = typeOf(entry.name);
+    if(!t) continue;
+    items.push({handle:entry, name:entry.name, size:0, type:t, done:false, skipped:false, url:null});
+  }
+  items.sort((a,b)=>a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:"base"}));
+  queue = items;
+  idx = -1;
+  advance(1);
+}
+async function refreshFolders(){
+  folders = [];
+  $("folderlist").innerHTML = "";
+  if(!dstDir){ renderFolders(); return; }
+  for await (const entry of dstDir.values()){
+    if(entry.kind !== "directory") continue;
+    if(entry.name === TRASH_NAME) continue;                                  // don't offer the trash bin as a category
+    if(srcDir && await entry.isSameEntry(srcDir).catch(()=>false)) continue; // don't offer the source itself
+    folders.push({handle:entry, name:entry.name, count:0});
+  }
+  folders.sort((a,b)=>a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:"base"}));
+  renderFolders();
+}
+function renderFolders(){
+  const list = $("folderlist");
+  list.innerHTML = "";
+  if(!dstDir){
+    list.innerHTML = '<div style="color:var(--dim);font-size:12.5px;padding:8px 6px;line-height:1.6">Pick your <b>Sort into</b> folder up top — every subfolder inside it becomes a button here.</div>';
+    return;
+  }
+  if(folders.length === 0){
+    list.innerHTML = '<div style="color:var(--dim);font-size:12.5px;padding:8px 6px;line-height:1.6">No subfolders found in this folder yet. Use <b>+ New folder</b> below to create your first category.</div>';
+    return;
+  }
+  folders.forEach((f, i)=>{
+    const b = document.createElement("button");
+    b.className = "fbtn";
+    b.innerHTML = `<kbd>${HOTKEYS[i] ?? "·"}</kbd><span class="fn"></span><span class="fc"></span>`;
+    b.querySelector(".fn").textContent = f.name;
+    b.querySelector(".fc").textContent = f.count ? "+"+f.count : "";
+    b.title = (mode==="move"?"Move":"Copy")+" this file into “"+f.name+"”";
+    b.addEventListener("click", ()=>{ b.blur(); sortCurrent(i); });
+    list.appendChild(b);
+  });
+}
+
+/* ── Queue navigation ───────────────────────────────────── */
+function visible(item){ return !item.done && (filter==="all" || item.type===filter); }
+function counts(){
+  let total=0, done=0, skipped=0;
+  for(const q of queue){
+    if(filter!=="all" && q.type!==filter) continue;
+    total++;
+    if(q.done) done++;
+    else if(q.skipped) skipped++;
+  }
+  return {total, done, skipped, remaining: total-done};
+}
+function advance(dir){
+  let i = idx;
+  while(true){
+    i += dir;
+    if(i < 0 || i >= queue.length){ idx = i; showCurrent(); return; }
+    if(visible(queue[i])){ idx = i; showCurrent(); return; }
+  }
+}
+function updateHUD(){
+  const c = counts();
+  $("progressfill").style.width = c.total ? (c.done/c.total*100)+"%" : "0%";
+  const pos = queue.filter((q,i)=>visible(q)&&i<=idx).length;
+  $("fpos").innerHTML = (idx>=0 && idx<queue.length && visible(queue[idx]))
+      ? `<b>${pos}</b> / ${c.remaining} left` : "";
+  $("stats").innerHTML =
+    `${c.done} sorted · ${c.skipped} skipped · ${c.remaining} to go` +
+    (history.length ? `<br>last: ${history[history.length-1].finalName} → ${history[history.length-1].destFolder.name}` : "");
+  $("prevBtn").disabled = idx <= 0;
+  $("trashBtn").disabled = !(srcDir && idx >= 0 && idx < queue.length && visible(queue[idx]));
+}
+
+/* ── Display ────────────────────────────────────────────── */
+function releaseFarURLs(){
+  queue.forEach((q,i)=>{
+    if(q.url && Math.abs(i-idx) > 2){ URL.revokeObjectURL(q.url); q.url = null; }
+  });
+}
+async function urlFor(item){
+  if(item.url) return item.url;
+  const f = await item.handle.getFile();
+  item.size = f.size;
+  item.url = URL.createObjectURL(f);
+  return item.url;
+}
+async function showCurrent(){
+  updateHUD();
+  well.innerHTML = "";
+  $("fname").textContent = ""; $("fmeta").textContent = "";
+
+  if(!srcDir){
+    well.innerHTML = `<div class="well-card">
+      <h2>Point me at two folders</h2>
+      <div><b>Source</b> — the folder full of unsorted images / videos / audio.<br>
+      <b>Sort into</b> — the master folder whose subfolders are your categories.<br><br>
+      Fastest way: drag a folder from Explorer / Finder anywhere onto this window.
+      The <b>left half</b> sets the source, the <b>right half</b> sets the sort-into folder.</div>
+      <button class="cta" id="cta1">Choose source folder</button>
+      <button class="ghost" id="cta2">Choose sort-into folder</button>
+    </div>`;
+    $("cta1").onclick = pickSource; $("cta2").onclick = pickDest;
+    return;
+  }
+  const c = counts();
+  if(idx >= queue.length || c.remaining === 0){
+    well.innerHTML = `<div class="well-card">
+      <div class="big">✓</div>
+      <h2>${c.total===0 ? "No supported media found here" : "All sorted"}</h2>
+      <div>${c.done} sorted${c.skipped ? " · "+c.skipped+" skipped" : ""}</div>
+      ${c.skipped ? '<button class="cta" id="revisit">Go through skipped ('+c.skipped+')</button>' : ""}
+      <button class="ghost" id="rescan">Rescan source</button>
+    </div>`;
+    const rv = $("revisit");
+    if(rv) rv.onclick = ()=>{ queue.forEach(q=>q.skipped=false); idx=-1; advance(1); };
+    $("rescan").onclick = scanSource;
+    return;
+  }
+  if(idx < 0){ advance(1); return; }
+
+  const item = queue[idx];
+  let url;
+  try{ url = await urlFor(item); }
+  catch(e){
+    toast("File not found — it may have been moved externally. Skipping.", true);
+    item.done = true; advance(1); return;
+  }
+  releaseFarURLs();
+
+  let el;
+  if(item.type === "image"){
+    el = document.createElement("img");
+    el.src = url;
+    el.onload = ()=>{ $("fmeta").textContent = `${el.naturalWidth}×${el.naturalHeight} · ${fmtBytes(item.size)}`; };
+    el.onerror = ()=> showNoPreview(item);
+    el.classList.add("fade-in");
+    well.appendChild(el);
+  }else if(item.type === "video"){
+    el = document.createElement("video");
+    el.src = url;
+    el.controls = true; el.loop = true; el.autoplay = true; el.playsInline = true;
+    el.muted = mutedPref;
+    el.addEventListener("volumechange", ()=>{ mutedPref = el.muted; });
+    el.onloadedmetadata = ()=>{
+      $("fmeta").textContent = `${el.videoWidth}×${el.videoHeight} · ${fmtDur(el.duration)} · ${fmtBytes(item.size)}`;
+    };
+    el.onerror = ()=> showNoPreview(item);
+    el.classList.add("fade-in");
+    well.appendChild(el);
+    el.play().catch(()=>{});
+  }else{
+    const card = document.createElement("div");
+    card.className = "audio-card fade-in";
+    card.innerHTML = `<div class="audio-icon">♫</div><div class="audio-name"></div><audio controls preload="metadata"></audio><div class="audio-note">Audio starts automatically when the browser allows it. Space toggles play / pause.</div>`;
+    card.querySelector(".audio-name").textContent = item.name;
+    el = card.querySelector("audio");
+    el.src = url;
+    el.autoplay = true;
+    el.onloadedmetadata = ()=>{
+      $("fmeta").textContent = `${fmtDur(el.duration)} · ${fmtBytes(item.size)} · audio`;
+      el.play().catch(()=>{});
+    };
+    el.onerror = ()=> showNoPreview(item);
+    well.appendChild(card);
+  }
+  $("fname").textContent = item.name;
+
+  // Warm up the next file so it appears instantly
+  for(let i = idx+1; i < queue.length; i++){
+    if(visible(queue[i])){ urlFor(queue[i]).catch(()=>{}); break; }
+  }
+}
+function showNoPreview(item){
+  well.innerHTML = `<div class="well-card">
+    <h2>Can't preview this one</h2>
+    <div style="font-family:var(--font-data);font-size:12.5px">${item.name}</div>
+    <div style="margin-top:8px">The browser can't decode this format, but you can still sort or skip it.</div>
+  </div>`;
+}
+
+/* ── Sorting actions ────────────────────────────────────── */
+async function sortCurrent(folderIdx){
+  if(busy) return;
+  if(idx < 0 || idx >= queue.length || !visible(queue[idx])) return;
+  const f = folders[folderIdx];
+  if(!f) return;
+  const item = queue[idx];
+  busy = true;
+  try{
+    if(mode === "move" && !await ensureRW(srcDir)){
+      toast("Need write permission on the source folder to move files.", true); busy=false; return;
+    }
+    if(!await ensureRW(dstDir)){
+      toast("Need write permission on the sort-into folder.", true); busy=false; return;
+    }
+    const finalName = await uniqueName(f.handle, item.name);
+    await copyInto(item.handle, f.handle, finalName);
+    if(mode === "move"){
+      await srcDir.removeEntry(item.name);
+    }
+    item.done = true; item.skipped = false;
+    f.count++;
+    history.push({ qi: idx, finalName, destFolder: f.handle, destName: f.name, srcName: item.name, mode });
+    if(history.length > 200) history.shift();
+    $("undoBtn").disabled = false;
+    renderFolders();
+    toast(`${mode === "move" ? "Moved" : "Copied"} → ${f.name}${finalName !== item.name ? "  (renamed: "+finalName+")" : ""}`);
+    advance(1);
+  }catch(e){
+    toast("Failed: "+e.message, true);
+  }
+  busy = false;
+}
+async function trashCurrent(){
+  if(busy) return;
+  if(idx < 0 || idx >= queue.length || !visible(queue[idx])) return;
+  const item = queue[idx];
+  busy = true;
+  try{
+    // Trashing is always a MOVE out of the source, regardless of the Move/Copy setting.
+    if(!await ensureRW(srcDir)){
+      toast("Need write permission on the source folder to trash files.", true); busy=false; return;
+    }
+    if(!trashDir){
+      trashDir = await srcDir.getDirectoryHandle(TRASH_NAME, {create:true});   // auto-create on first use
+    }
+    const finalName = await uniqueName(trashDir, item.name);
+    await copyInto(item.handle, trashDir, finalName);
+    await srcDir.removeEntry(item.name);
+    if(item.url){ URL.revokeObjectURL(item.url); item.url = null; }
+    item.done = true; item.skipped = false;
+    history.push({ qi: idx, finalName, destFolder: trashDir, destName: TRASH_NAME, srcName: item.name, mode:"trash" });
+    if(history.length > 200) history.shift();
+    $("undoBtn").disabled = false;
+    toast(`Trashed → ${TRASH_NAME}/${finalName !== item.name ? "  (renamed: "+finalName+")" : ""}`);
+    advance(1);
+  }catch(e){
+    toast("Trash failed: "+e.message, true);
+  }
+  busy = false;
+}
+async function undoLast(){
+  if(busy || history.length === 0) return;
+  const h = history.pop();
+  const item = queue[h.qi];
+  busy = true;
+  try{
+    if(h.mode === "move" || h.mode === "trash"){
+      // bring it back to the source folder, then remove from destination (or Trash)
+      const destFile = await h.destFolder.getFileHandle(h.finalName);
+      const restoredName = await uniqueName(srcDir, h.srcName);
+      await copyInto(destFile, srcDir, restoredName);
+      await h.destFolder.removeEntry(h.finalName);
+      item.handle = await srcDir.getFileHandle(restoredName);
+      item.name = restoredName;
+    }else{
+      await h.destFolder.removeEntry(h.finalName);
+    }
+    if(item.url){ URL.revokeObjectURL(item.url); item.url = null; }
+    item.done = false;
+    const f = folders.find(x=>x.name === h.destName); if(f && f.count>0) f.count--;
+    renderFolders();
+    idx = h.qi;
+    showCurrent();
+    const undoVerb = h.mode === "move" ? "move" : h.mode === "trash" ? "trash" : "copy";
+    toast("Undid "+undoVerb+" of "+h.srcName);
+  }catch(e){
+    toast("Undo failed: "+e.message, true);
+  }
+  $("undoBtn").disabled = history.length === 0;
+  busy = false;
+}
+function skip(){
+  if(idx < 0 || idx >= queue.length) return;
+  queue[idx].skipped = true;
+  advance(1);
+}
+function prev(){ advance(-1); }
+
+/* ── New folder ─────────────────────────────────────────── */
+$("newfolderbtn").addEventListener("click", ()=>{
+  if(!dstDir){ toast("Pick your Sort-into folder first.", true); return; }
+  $("newfolderbtn").style.display = "none";
+  const inp = $("newfolderinput");
+  inp.style.display = "block"; inp.value = ""; inp.focus();
+});
+$("newfolderinput").addEventListener("keydown", async e=>{
+  const inp = e.target;
+  if(e.key === "Escape"){ inp.style.display="none"; $("newfolderbtn").style.display="block"; return; }
+  if(e.key !== "Enter") return;
+  const name = inp.value.trim();
+  if(!name) return;
+  if(!await ensureRW(dstDir)){ toast("Need write permission on the sort-into folder.", true); return; }
+  try{
+    await dstDir.getDirectoryHandle(name, {create:true});
+    inp.style.display = "none"; $("newfolderbtn").style.display = "block";
+    await refreshFolders();
+    toast("Created folder “"+name+"”");
+  }catch(err){ toast("Couldn't create folder: "+err.message, true); }
+});
+
+/* ── Mode / filter / chips ──────────────────────────────── */
+$("modeSeg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  mode = b.dataset.m;
+  document.documentElement.dataset.mode = mode;
+  $("modeSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
+  $("verb").textContent = mode === "move" ? "Move" : "Copy";
+  renderFolders();
+});
+$("filterSeg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  filter = b.dataset.f;
+  $("filterSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
+  if(idx < 0 || idx >= queue.length || !visible(queue[idx])){ idx = -1; advance(1); }
+  else showCurrent();
+});
+$("srcChip").addEventListener("click", pickSource);
+$("dstChip").addEventListener("click", pickDest);
+$("skipBtn").addEventListener("click", ()=>{ $("skipBtn").blur(); skip(); });
+$("prevBtn").addEventListener("click", ()=>{ $("prevBtn").blur(); prev(); });
+$("undoBtn").addEventListener("click", ()=>{ $("undoBtn").blur(); undoLast(); });
+$("trashBtn").addEventListener("click", ()=>{ $("trashBtn").blur(); trashCurrent(); });
+
+/* ── Drag & drop folders ────────────────────────────────── */
+const overlay = $("dropoverlay");
+let dragDepth = 0;
+function draggingFiles(e){ return [...(e.dataTransfer?.types || [])].includes("Files"); }
+function hideOverlay(){
+  dragDepth = 0;
+  overlay.classList.remove("show");
+  $("dzSrc").classList.remove("hot"); $("dzDst").classList.remove("hot");
+}
+window.addEventListener("dragenter", e=>{
+  if(!draggingFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  overlay.classList.add("show");
+});
+window.addEventListener("dragleave", e=>{
+  if(!draggingFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if(dragDepth === 0) hideOverlay();
+});
+window.addEventListener("dragover", e=>{
+  if(!draggingFiles(e)) return;
+  e.preventDefault();
+  const left = e.clientX < window.innerWidth / 2;
+  $("dzSrc").classList.toggle("hot", left);
+  $("dzDst").classList.toggle("hot", !left);
+});
+window.addEventListener("drop", async e=>{
+  if(!draggingFiles(e)) return;
+  e.preventDefault();
+  const left = e.clientX < window.innerWidth / 2;
+  const item = [...e.dataTransfer.items].find(i => i.kind === "file");
+  hideOverlay();
+  if(!item) return;
+  if(!item.getAsFileSystemHandle){
+    toast("This browser can't hand me folders from a drop — use the buttons up top.", true);
+    return;
+  }
+  const pending = item.getAsFileSystemHandle();   // must be called before any await
+  let handle;
+  try{ handle = await pending; }
+  catch(err){ toast("Couldn't read that drop: " + err.message, true); return; }
+  if(!handle || handle.kind !== "directory"){
+    toast("Drop the folder itself — loose files won't work here.", true);
+    return;
+  }
+  if(left) await adoptSource(handle); else await adoptDest(handle);
+  toast((left ? "Source" : "Sort into") + " → " + handle.name);
+});
+
+/* ── Keyboard ───────────────────────────────────────────── */
+window.addEventListener("keydown", e=>{
+  const tag = document.activeElement?.tagName;
+  if(tag === "INPUT" || tag === "TEXTAREA") return;
+  if(e.ctrlKey && e.key.toLowerCase() === "z"){ e.preventDefault(); undoLast(); return; }
+  if(e.ctrlKey || e.altKey || e.metaKey) return;
+
+  const k = e.key.toUpperCase();
+  const hi = HOTKEYS.indexOf(k);
+  if(hi >= 0 && hi < folders.length){ e.preventDefault(); sortCurrent(hi); return; }
+
+  switch(e.key){
+    case "ArrowRight": e.preventDefault(); skip(); break;
+    case "ArrowLeft":  e.preventDefault(); prev(); break;
+    case "Delete": case "Backspace": e.preventDefault(); trashCurrent(); break;
+    case "z": case "Z": e.preventDefault(); undoLast(); break;
+    case "s": case "S": e.preventDefault(); skip(); break;
+    case "m": case "M": {
+      const v = well.querySelector("video, audio");
+      if(v){ v.muted = !v.muted; mutedPref = v.muted; }
+      break;
+    }
+    case " ": {
+      const v = well.querySelector("video, audio");
+      if(v && document.activeElement !== v){
+        e.preventDefault();
+        v.paused ? v.play() : v.pause();
+      }
+      break;
+    }
+  }
+});
+
+
+/* ── Host integration ───────────────────────────────────── */
+window.addEventListener("message", e=>{
+  if(!e.data || e.data.type !== "comfy-media-tab-visibility") return;
+  const player = well.querySelector("video, audio");
+  if(player && !e.data.visible) player.pause();
+});
+
+/* ── Boot ───────────────────────────────────────────────── */
+if(!window.showDirectoryPicker){
+  well.innerHTML = `<div class="well-card">
+    <h2>This browser can't do the file work</h2>
+    <div>Media Sorter needs the File System Access API to move and copy files on your drive.
+    Open this file in <b>Chrome</b> or <b>Edge</b>.<br><br>
+    If the folder picker still won't open from a double-clicked file, run
+    <span style="font-family:var(--font-data)">python -m http.server</span> in the file's folder
+    and open <span style="font-family:var(--font-data)">localhost:8000/media-sorter.html</span>.</div>
+  </div>`;
+}else{
+  showCurrent();
+}
+</script>
+</body>
+</html>

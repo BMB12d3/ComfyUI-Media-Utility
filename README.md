@@ -8,6 +8,22 @@ The goal is simple: handle the quick media jobs that do not justify opening a fu
 
 > This project is a standalone companion utility. It is not a ComfyUI custom node and is not affiliated with the ComfyUI project.
 
+## Screenshots
+
+### Extract / Trim
+
+![Extract / Trim](docs/screenshots/extract-trim.png)
+
+### Sort
+
+![Sort](docs/screenshots/sort.png)
+
+### Compare
+
+![Compare](docs/screenshots/compare.png)
+
+For step-by-step instructions, see the **[Full User Guide](docs/USER_GUIDE.md)**.
+
 ## What it does
 
 ### Extract / Trim
@@ -52,21 +68,6 @@ The goal is simple: handle the quick media jobs that do not justify opening a fu
 - Audio audition modes:
   - **Hover Audio** — hear whichever comparison/reference pane you hover.
   - **Select Audio** — explicitly choose Left / Reference / Right.
-
-## Screenshots
-
-### Extract / Trim
-![Extract / Trim](docs/screenshots/extract-trim.png)
-
-### Sort
-![Sort](docs/screenshots/sort.png)
-
-### Compare
-![Compare](docs/screenshots/compare.png)
-
-## User guide
-
-See the full [User Guide](docs/USER_GUIDE.md) for step-by-step instructions, workflow examples, shortcuts, and troubleshooting.
 
 ## Requirements
 

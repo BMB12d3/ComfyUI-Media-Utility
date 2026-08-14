@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Comfy Media Utility — Extract & Trim</title>
+<style>
+  :root{
+    --bg:#101114; --panel:#181a1f; --panel2:#20232a; --line:#30343d;
+    --text:#f3f5f7; --muted:#9da5b4; --accent:#7aa2ff; --accent2:#a9c0ff;
+    --good:#79d69a; --warn:#f4c96b; --danger:#ff7a8b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:linear-gradient(180deg,#0e0f12,#121419);
+    color:var(--text); font:14px/1.4 Inter,Segoe UI,Roboto,Arial,sans-serif;
+  }
+  button,input{font:inherit}
+  button{color:var(--text)}
+  .app{max-width:1280px;margin:0 auto;padding:18px}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    margin-bottom:14px;
+  }
+  .title h1{font-size:20px;margin:0 0 2px;font-weight:700;letter-spacing:.2px}
+  .title p{margin:0;color:var(--muted);font-size:12px}
+  .status{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .pill{
+    padding:6px 9px;border:1px solid var(--line);border-radius:999px;
+    background:#15171b;color:var(--muted);font-size:12px;white-space:nowrap
+  }
+  .pill.good{color:var(--good);border-color:#355a43}
+  .pill.warn{color:var(--warn);border-color:#5e5030}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:14px}
+  .panel{
+    background:rgba(24,26,31,.96);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:0 12px 36px rgba(0,0,0,.20);
+  }
+  .viewer{overflow:hidden}
+  .video-wrap{
+    position:relative;aspect-ratio:16/9;background:#090a0c;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    user-select:none;
+  }
+  .video-stage{
+    position:absolute;inset:0;transform-origin:0 0;will-change:transform;
+  }
+  .video-stage.zoomed{cursor:grab}
+  .video-stage.dragging{cursor:grabbing}
+  video{
+    display:block;width:100%;height:100%;object-fit:contain;background:#000;
+    pointer-events:none;
+  }
+  .viewer-zoom-badge{
+    position:absolute;right:10px;top:10px;z-index:5;
+    padding:5px 8px;border-radius:7px;background:rgba(12,14,18,.76);
+    border:1px solid rgba(255,255,255,.14);color:#e8edf6;
+    font-size:11px;font-variant-numeric:tabular-nums;pointer-events:none;
+    backdrop-filter:blur(4px)
+  }
+  .empty-video{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);text-align:center;padding:30px;pointer-events:none
+  }
+  .empty-video b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
+  .controls{padding:12px 14px 14px;border-top:1px solid var(--line)}
+  .control-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--line);background:var(--panel2);border-radius:9px;
+    padding:8px 11px;cursor:pointer;transition:.15s ease;min-height:36px
+  }
+  .btn:hover:not(:disabled){border-color:#49505d;background:#262a32}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--accent);color:#0b1020;border-color:var(--accent);font-weight:700}
+  .btn.capture{margin-left:auto;background:#edf2ff;color:#111827;border-color:#edf2ff;font-weight:800;padding-inline:16px}
+  .timecode{font-variant-numeric:tabular-nums;color:var(--accent2);min-width:178px}
+  .rate{min-width:52px}
+  .timeline-box{
+    margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#14161a
+  }
+  .timeline-labels{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-bottom:5px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .overview-wrap,.fine-wrap{position:relative}
+  .overview-wrap{
+    padding:5px 0 8px;
+    overflow:hidden;
+    border-radius:8px;
+  }
+  .view-window{
+    position:absolute;
+    top:1px;
+    bottom:4px;
+    height:auto;
+    border:2px solid rgba(169,192,255,.98);
+    background:rgba(122,162,255,.25);
+    border-radius:6px;
+    pointer-events:none;
+    z-index:5;
+    box-shadow:
+      0 0 0 9999px rgba(4,6,10,.48),
+      inset 0 0 0 1px rgba(255,255,255,.14),
+      0 0 13px rgba(122,162,255,.42);
+  }
+  .view-window::before,
+  .view-window::after{
+    content:"";
+    position:absolute;
+    top:3px;
+    bottom:3px;
+    width:3px;
+    border-radius:2px;
+    background:rgba(229,236,255,.98);
+    box-shadow:0 0 6px rgba(169,192,255,.9);
+  }
+  .view-window::before{left:3px}
+  .view-window::after{right:3px}
+  .zoom-row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-top:9px;
+  }
+  .zoom-row > input[type=range]{
+    flex:1 1 180px;
+    width:auto;
+    min-width:140px;
+  }
+  .zoom-row span{color:var(--muted);font-size:12px}
+  .zoom-readout{min-width:52px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)!important}
+  .smallbtn{padding:5px 8px;min-height:30px}
+  .visible-range{color:var(--muted);font-size:11px;margin-top:4px;text-align:center;font-variant-numeric:tabular-nums}
+
+  .sidebar{padding:14px;display:flex;flex-direction:column;gap:12px}
+  .section-title{font-weight:700;margin:0 0 7px}
+  .dropzone{
+    min-height:120px;border:1.5px dashed #454b57;border-radius:12px;
+    background:#14161a;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:16px;color:var(--muted);transition:.15s ease
+  }
+  .dropzone.drag{border-color:var(--accent);background:#171d2b;color:var(--accent2)}
+  .dropzone .icon{font-size:28px;margin-bottom:7px}
+  .dropzone b{color:var(--text);margin-bottom:4px}
+  .dropzone small{font-size:11px}
+  .wide{width:100%}
+  .folder-name,.file-name{
+    margin-top:7px;padding:8px 9px;border-radius:8px;background:#111318;border:1px solid #292d35;
+    color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  .meta{
+    display:grid;grid-template-columns:auto 1fr;gap:5px 10px;
+    color:var(--muted);font-size:12px
+  }
+  .meta .v{color:var(--text);text-align:right;word-break:break-word}
+  .hint{
+    padding:10px;border-radius:10px;background:#14161a;border:1px solid var(--line);
+    color:var(--muted);font-size:11px
+  }
+  .capture-log{
+    max-height:160px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:#111318
+  }
+  .capture-item{padding:8px 9px;border-bottom:1px solid #252932;font-size:11px;color:var(--muted)}
+  .capture-item:last-child{border-bottom:none}
+  .capture-item b{color:var(--good)}
+  .toast{
+    position:fixed;right:18px;bottom:18px;max-width:420px;padding:11px 13px;border-radius:10px;
+    background:#252a33;border:1px solid #3a414e;color:var(--text);box-shadow:0 14px 36px rgba(0,0,0,.35);
+    opacity:0;transform:translateY(8px);pointer-events:none;transition:.2s ease;z-index:99
+  }
+  .toast.show{opacity:1;transform:none}
+  .toast.error{border-color:#70404a;color:#ffd4da}
+  .protocol-warning{
+    display:none;margin-bottom:14px;padding:11px 13px;border-radius:10px;
+    background:#261f13;border:1px solid #6a5732;color:#f1d58a;font-size:12px
+  }
+  .protocol-warning.show{display:block}
+  .protocol-warning b{color:#ffe5a7}
+  kbd{border:1px solid #4b515e;border-bottom-width:2px;border-radius:5px;padding:1px 5px;background:#20232a;color:#dfe6f2}
+
+  .io-row{
+    display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;
+    padding-top:10px;border-top:1px solid var(--line)
+  }
+  .btn.inout{font-weight:700}
+  .btn.in{border-color:#496d9c}
+  .btn.out{border-color:#8a5f73}
+  .selection-readout{
+    margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    font-variant-numeric:tabular-nums;color:var(--muted);font-size:11px
+  }
+  .selection-readout b{color:var(--text)}
+  .selection-overlay{
+    position:absolute;top:7px;height:6px;border-radius:99px;pointer-events:none;
+    background:rgba(121,214,154,.38);border:1px solid rgba(121,214,154,.78);
+    z-index:2
+  }
+  .fine-selection{
+    position:absolute;top:7px;height:6px;border-radius:99px;pointer-events:none;
+    background:rgba(121,214,154,.38);border:1px solid rgba(121,214,154,.78);
+    z-index:2
+  }
+  .io-marker{
+    position:absolute;top:1px;width:2px;height:19px;pointer-events:none;z-index:3;
+    transform:translateX(-1px)
+  }
+  .io-marker.in{background:#7aa2ff}
+  .io-marker.out{background:#e68aaa}
+  .io-marker::after{
+    content:"";position:absolute;top:-2px;left:-3px;width:8px;height:5px;border-radius:2px
+  }
+  .io-marker.in::after{background:#7aa2ff}
+  .io-marker.out::after{background:#e68aaa}
+  .export-card{
+    border:1px solid var(--line);border-radius:11px;background:#14161a;padding:10px
+  }
+  .export-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .export-grid .btn{width:100%}
+  .field-label{display:block;color:var(--muted);font-size:11px;margin:9px 0 5px}
+  select{
+    width:100%;background:#20232a;border:1px solid var(--line);border-radius:8px;
+    color:var(--text);padding:8px 9px;outline:none
+  }
+  select:focus{border-color:#556071}
+  .engine-row{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;
+    color:var(--muted);font-size:11px
+  }
+  .engine-dot{
+    width:8px;height:8px;border-radius:50%;background:#6a7180;display:inline-block;margin-right:6px
+  }
+  .engine-dot.ready{background:var(--good)}
+  .engine-dot.busy{background:var(--warn)}
+  .engine-dot.error{background:var(--danger)}
+  .progress-wrap{margin-top:9px;display:none}
+  .progress-wrap.show{display:block}
+  .progress-track{
+    height:7px;background:#0d0f12;border:1px solid #2a2f37;border-radius:99px;overflow:hidden
+  }
+  .progress-bar{height:100%;width:0%;background:var(--accent);transition:width .12s linear}
+  .progress-text{
+    display:flex;justify-content:space-between;gap:8px;margin-top:5px;color:var(--muted);
+    font-size:10px;font-variant-numeric:tabular-nums
+  }
+  .export-note{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.35}
+
+  @media(max-width:850px){
+    .grid{grid-template-columns:1fr}.sidebar{order:-1}
+    .btn.capture{margin-left:0}
+    .zoom-row{align-items:center}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="title">
+      <h1>Extract & Trim</h1>
+      <p>Quick frame grabs, video trims, and audio extraction — without opening an editor.</p>
+    </div>
+    <div class="status">
+      <div id="videoStatus" class="pill">No video</div>
+      <div id="folderStatus" class="pill warn">Downloads fallback</div>
+    </div>
+  </div>
+
+  <div id="protocolWarning" class="protocol-warning">
+    <b>MP4/WAV export is unavailable when this HTML is opened directly from disk.</b>
+    Frame grabbing still works normally. For audio/video export, close this page and launch the app with
+    <b>Launch_Media_Tool.bat</b> from the v2.1 package.
+  </div>
+
+  <div class="grid">
+    <main class="panel viewer">
+      <div class="video-wrap" id="videoDropTarget">
+        <div id="videoStage" class="video-stage">
+          <video id="video" preload="metadata"></video>
+        </div>
+        <div id="viewerZoomBadge" class="viewer-zoom-badge">100%</div>
+        <div id="emptyVideo" class="empty-video">
+          <div><b>Drop video or audio here</b>or choose a file on the right.</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="control-row">
+          <button id="rewindBtn" class="btn" disabled title="Back 10 seconds">↶ 10s</button>
+          <button id="playBtn" class="btn primary" disabled>▶ Play</button>
+          <button id="forwardBtn" class="btn" disabled title="Forward 10 seconds">10s ↷</button>
+          <button id="rateBtn" class="btn rate" disabled title="Cycle playback speed">1×</button>
+          <button id="fitViewerBtn" class="btn" disabled title="Reset video viewer zoom to 100%">Fit 100%</button>
+          <div id="timecode" class="timecode">00:00.000 / 00:00.000</div>
+          <button id="captureBtn" class="btn capture" disabled>📷 Capture PNG</button>
+        </div>
+
+        <div class="timeline-box">
+          <div class="timeline-labels"><span>Whole clip</span><span id="durationLabel">00:00.000</span></div>
+          <div class="overview-wrap">
+            <input id="overview" type="range" min="0" max="1" step="0.001" value="0" disabled />
+            <div id="selectionOverview" class="selection-overlay" style="left:0%;width:100%"></div>
+            <div id="viewWindow" class="view-window" style="left:0%;width:100%"></div>
+          </div>
+
+          <div class="timeline-labels"><span>Zoomed timeline</span><span id="finePosition">00:00.000</span></div>
+          <div class="fine-wrap">
+            <input id="fineTimeline" type="range" min="0" max="1" step="0.001" value="0" disabled />
+            <div id="fineSelection" class="fine-selection" style="left:0%;width:100%"></div>
+            <div id="inMarker" class="io-marker in" style="left:0%"></div>
+            <div id="outMarker" class="io-marker out" style="left:100%"></div>
+          </div>
+          <div id="visibleRange" class="visible-range">Visible: 00:00.000 – 00:00.000</div>
+
+          <div class="io-row">
+            <button id="setInBtn" class="btn inout in" disabled>[ I ] Set In</button>
+            <button id="setOutBtn" class="btn inout out" disabled>[ O ] Set Out</button>
+            <button id="goInBtn" class="btn smallbtn" disabled>Go In</button>
+            <button id="goOutBtn" class="btn smallbtn" disabled>Go Out</button>
+            <button id="playSelectionBtn" class="btn smallbtn" disabled>▶ Play Selection</button>
+            <button id="fullRangeBtn" class="btn smallbtn" disabled>Full Range</button>
+            <div class="selection-readout">
+              <span>IN <b id="inReadout">00:00.000</b></span>
+              <span>OUT <b id="outReadout">00:00.000</b></span>
+              <span>LEN <b id="selectionDuration">00:00.000</b></span>
+            </div>
+          </div>
+
+          <div class="zoom-row">
+            <span>Timeline zoom</span>
+            <input id="zoom" type="range" min="1" max="100" step="0.1" value="1" disabled />
+            <span id="zoomReadout" class="zoom-readout">1.0×</span>
+            <button id="zoomOutBtn" class="btn smallbtn" disabled title="Zoom the timeline out">−</button>
+            <button id="zoomInBtn" class="btn smallbtn" disabled title="Zoom the timeline in">+</button>
+            <button id="centerZoomBtn" class="btn smallbtn" disabled title="Keep this zoom amount and center the zoom window on the current playhead">Center on Playhead</button>
+            <button id="playheadLeftBtn" class="btn smallbtn" disabled title="Keep this zoom amount and move the zoom window so the current playhead becomes its left edge">Playhead → Left</button>
+            <button id="resetZoomBtn" class="btn smallbtn" disabled>Fit entire clip</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="panel sidebar">
+      <section>
+        <h3 class="section-title">1. Load media</h3>
+        <div id="videoDropZone" class="dropzone">
+          <div class="icon">🎬</div>
+          <b>Drop video or audio</b>
+          <small>Video or audio in any format your browser can play</small>
+        </div>
+        <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
+        <button id="chooseVideoBtn" class="btn wide" style="margin-top:8px">Choose Video / Audio…</button>
+        <div id="fileName" class="file-name">No media loaded</div>
+      </section>
+
+      <section>
+        <h3 class="section-title">2. Output folder</h3>
+        <div id="folderDropZone" class="dropzone" style="min-height:105px">
+          <div class="icon">📁</div>
+          <b>Drop output folder</b>
+          <small>or pick one with the button below</small>
+        </div>
+        <button id="chooseFolderBtn" class="btn wide" style="margin-top:8px">Choose Output Folder…</button>
+        <div id="folderName" class="folder-name">Not selected — captures will download normally</div>
+      </section>
+
+      <section>
+        <h3 class="section-title">3. Export selection</h3>
+        <div class="export-card">
+          <label class="field-label" for="mp4Mode">MP4 cut mode</label>
+          <select id="mp4Mode">
+            <option value="fast">Fast Cut — no re-encode / original quality</option>
+            <option value="exact">Exact Cut — H.264 re-encode</option>
+          </select>
+
+          <div class="export-grid" style="margin-top:9px">
+            <button id="exportMp4Btn" class="btn" disabled>🎞 Export MP4</button>
+            <button id="exportWavBtn" class="btn" disabled>🔊 Export WAV</button>
+          </div>
+
+          <div class="engine-row">
+            <span><span id="engineDot" class="engine-dot"></span><span id="engineStatus">FFmpeg engine prepared by launcher</span></span>
+            <button id="cancelExportBtn" class="btn smallbtn" style="display:none">Cancel</button>
+          </div>
+
+          <div id="progressWrap" class="progress-wrap">
+            <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+            <div class="progress-text">
+              <span id="progressLabel">Preparing…</span>
+              <span id="progressPct"></span>
+            </div>
+          </div>
+
+          <div class="export-note">
+            Fast Cut is nearly instant and does not recompress, but the start may align to a nearby video keyframe.
+            Exact Cut re-encodes H.264 for much more precise In/Out points. WAV exports uncompressed 48 kHz PCM.
+            The launcher downloads and caches the FFmpeg WebAssembly engine locally on first setup. After that, MP4/WAV processing runs from the local copy and your media stays on your computer. MP4/WAV export must be run through the included local launcher rather than by double-clicking the HTML file.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3 class="section-title">Media info</h3>
+        <div class="meta">
+          <div>Resolution</div><div id="resolution" class="v">—</div>
+          <div>Duration</div><div id="durationMeta" class="v">—</div>
+          <div>Current</div><div id="currentMeta" class="v">—</div>
+        </div>
+      </section>
+
+      <section>
+        <h3 class="section-title">Recent captures</h3>
+        <div id="captureLog" class="capture-log">
+          <div class="capture-item">No captures yet.</div>
+        </div>
+      </section>
+
+      <div class="hint">
+        <b>Shortcuts:</b> <kbd>Space</kbd> play/pause · <kbd>←</kbd>/<kbd>→</kbd> ±1 sec ·
+        <kbd>Shift</kbd>+<kbd>←</kbd>/<kbd>→</kbd> ±10 sec · <kbd>I</kbd> mark In ·
+        <kbd>O</kbd> mark Out · <kbd>C</kbd> capture.
+        <br><br>
+        <b>Viewer:</b> Scroll the mouse wheel over the image to zoom toward the pointer. When zoomed in,
+        click-drag the image to pan. Use <b>Fit 100%</b> to reset the view.
+        <br><br>
+        <b>Zoom timeline:</b> The highlighted box on the Whole Clip bar is the exact range shown by the zoomed
+        scrubber. That range stays locked while you scrub. Use <b>Center on Playhead</b> or <b>Playhead → Left</b>
+        when you want to deliberately slide the zoom window to a new part of the clip.
+        <br><br>
+        Folder picking and folder drag/drop work best in desktop Chrome or Edge. If direct folder access is unavailable, PNGs fall back to normal browser downloads.
+      </div>
+    </aside>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<canvas id="captureCanvas" hidden></canvas>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const video = $('video');
+  const videoStage = $('videoStage');
+  const videoDropTarget = $('videoDropTarget');
+  const canvas = $('captureCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  let videoFile = null;
+  let videoURL = null;
+  let mediaKind = null; // 'video' | 'audio'
+  let outputDirHandle = null;
+  let zoomFactor = 1;
+  let viewStart = 0;
+  let viewEnd = 0;
+  let scrubbingFine = false;
+  let scrubbingOverview = false;
+  let toastTimer = null;
+  let captureCount = 0;
+
+  // In / Out selection.
+  let inPoint = 0;
+  let outPoint = 0;
+  let playSelectionMode = false;
+
+  // FFmpeg WebAssembly export engine.
+  // Public build: dependencies are cached locally by setup_ffmpeg.py.
+  let ffmpeg = null;
+  let ffmpegReady = false;
+  let ffmpegLoadPromise = null;
+  let ffmpegRunning = false;
+  let ffmpegAbortController = null;
+  const FFMPEG_WRAPPER_BASE = './vendor/ffmpeg/ffmpeg';
+  const FFMPEG_CORE_BASE = './vendor/ffmpeg/core';
+
+  // Viewer image zoom/pan. This affects only inspection of the image onscreen;
+  // PNG captures still save the complete source frame at native resolution.
+  let viewerScale = 1;
+  let viewerPanX = 0;
+  let viewerPanY = 0;
+  let viewerDragging = false;
+  let viewerDragStartX = 0;
+  let viewerDragStartY = 0;
+  let viewerDragOriginX = 0;
+  let viewerDragOriginY = 0;
+  const VIEWER_MIN_SCALE = 1;
+  const VIEWER_MAX_SCALE = 8;
+
+  const EXPORT_PROTOCOL_OK = location.protocol === 'http:' || location.protocol === 'https:';
+  const playbackRates = [0.5, 1, 1.5, 2];
+  let rateIndex = 1;
+
+  function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
+
+  function fmt(t){
+    if (!Number.isFinite(t) || t < 0) t = 0;
+    const ms = Math.floor((t % 1) * 1000);
+    const whole = Math.floor(t);
+    const s = whole % 60;
+    const m = Math.floor(whole / 60) % 60;
+    const h = Math.floor(whole / 3600);
+    return h > 0
+      ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms).padStart(3,'0')}`
+      : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+  }
+
+  function safeTimeForFilename(t){
+    return fmt(t).replace(/:/g,'-').replace('.','-');
+  }
+
+  function showToast(message, isError=false){
+    const el = $('toast');
+    el.textContent = message;
+    el.className = `toast show${isError ? ' error' : ''}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.className = 'toast', 2600);
+  }
+
+  function setVideoEnabled(enabled){
+    ['rewindBtn','playBtn','forwardBtn','rateBtn','fitViewerBtn','captureBtn','overview','fineTimeline',
+     'zoom','zoomOutBtn','zoomInBtn','centerZoomBtn','playheadLeftBtn','resetZoomBtn',
+     'setInBtn','setOutBtn','goInBtn','goOutBtn','playSelectionBtn','fullRangeBtn']
+     .forEach(id => $(id).disabled = !enabled);
+
+    $('captureBtn').disabled = !enabled || mediaKind !== 'video';
+    $('fitViewerBtn').disabled = !enabled || mediaKind !== 'video';
+    $('exportMp4Btn').disabled = !enabled || mediaKind !== 'video' || !EXPORT_PROTOCOL_OK;
+    $('exportWavBtn').disabled = !enabled || !EXPORT_PROTOCOL_OK;
+  }
+
+  function updatePlayButton(){
+    $('playBtn').textContent = video.paused ? '▶ Play' : '❚❚ Pause';
+  }
+
+  function updateStatus(){
+    if (videoFile){
+      $('videoStatus').textContent = mediaKind === 'audio' ? 'Audio loaded' : 'Video loaded';
+      $('videoStatus').className = 'pill good';
+    } else {
+      $('videoStatus').textContent = 'No media';
+      $('videoStatus').className = 'pill';
+    }
+    if (outputDirHandle){
+      $('folderStatus').textContent = 'Folder ready';
+      $('folderStatus').className = 'pill good';
+    } else {
+      $('folderStatus').textContent = 'Downloads fallback';
+      $('folderStatus').className = 'pill warn';
+    }
+  }
+
+  async function loadVideoFile(file){
+    const mime = file?.type || '';
+    const name = file?.name || '';
+    const isAud = mime.startsWith('audio/') || /\.(wav|mp3|flac|m4a|aac|ogg|opus|wma|aiff?|alac)$/i.test(name);
+    const isVid = mime.startsWith('video/') || /\.(mp4|m4v|mov|webm|mkv|avi|mpg|mpeg|wmv|ogv)$/i.test(name);
+    if (!file || (!isAud && !isVid)){
+      showToast('Please drop or choose a video or audio file.', true);
+      return;
+    }
+    video.pause();
+    if (videoURL) URL.revokeObjectURL(videoURL);
+    videoFile = file;
+    mediaKind = isAud && !isVid ? 'audio' : 'video';
+    videoURL = URL.createObjectURL(file);
+    video.src = videoURL;
+    $('fileName').textContent = file.name;
+
+    if (mediaKind === 'audio') {
+      $('emptyVideo').style.display = 'flex';
+      $('emptyVideo').innerHTML = `<div><b>♫ Audio loaded</b>${escapeHTML(file.name)}<br><small>Set In / Out points and export a WAV selection.</small></div>`;
+    } else {
+      $('emptyVideo').style.display = 'none';
+    }
+
+    zoomFactor = 1;
+    $('zoom').value = 1;
+    rateIndex = 1;
+    video.playbackRate = 1;
+    $('rateBtn').textContent = '1×';
+    captureCount = 0;
+    $('captureLog').innerHTML = '<div class="capture-item">No captures yet.</div>';
+    inPoint = 0;
+    outPoint = 0;
+    playSelectionMode = false;
+    resetViewerZoom();
+    updateStatus();
+    try { await video.load(); } catch(_) {}
+  }
+  video.addEventListener('loadedmetadata', () => {
+    const d = video.duration || 0;
+    setVideoEnabled(d > 0);
+    $('overview').min = 0;
+    $('overview').max = d;
+    $('overview').value = 0;
+    $('fineTimeline').min = 0;
+    $('fineTimeline').max = d;
+    $('fineTimeline').value = 0;
+    viewStart = 0; viewEnd = d;
+    inPoint = 0;
+    outPoint = d;
+    $('durationLabel').textContent = fmt(d);
+    $('durationMeta').textContent = fmt(d);
+    $('resolution').textContent = mediaKind === 'audio' ? 'Audio only' : `${video.videoWidth} × ${video.videoHeight}`;
+    updateTimelineWindow(true);
+    updateSelectionUI();
+    updateTimeUI();
+    setVideoEnabled(d > 0);
+    showToast(mediaKind === 'audio' ? 'Audio loaded.' : 'Video loaded.');
+  });
+
+  video.addEventListener('error', () => {
+    setVideoEnabled(false);
+    showToast('The browser could not play this media format/codec.', true);
+  });
+
+  video.addEventListener('play', updatePlayButton);
+  video.addEventListener('pause', updatePlayButton);
+  video.addEventListener('ended', updatePlayButton);
+
+  function applyTimelineWindow(start, end){
+    const d = video.duration || 0;
+    if (!d) return;
+
+    viewStart = clamp(start, 0, d);
+    viewEnd = clamp(end, viewStart, d);
+
+    $('fineTimeline').min = viewStart;
+    $('fineTimeline').max = viewEnd;
+    $('fineTimeline').step = Math.max(0.001, (viewEnd - viewStart) / 20000);
+    $('fineTimeline').value = clamp(video.currentTime, viewStart, viewEnd);
+
+    $('zoomReadout').textContent = `${zoomFactor.toFixed(1)}×`;
+    $('visibleRange').textContent =
+      `Visible: ${fmt(viewStart)} – ${fmt(viewEnd)}  (${fmt(viewEnd - viewStart)} span)`;
+
+    const left = d ? (viewStart / d) * 100 : 0;
+    const width = d ? ((viewEnd - viewStart) / d) * 100 : 100;
+    $('viewWindow').style.left = `${left}%`;
+    $('viewWindow').style.width = `${Math.max(.35, width)}%`;
+    updateSelectionUI();
+  }
+
+  function updateTimelineWindow(centerOnPlayhead=false){
+    const d = video.duration || 0;
+    if (!d) return;
+
+    zoomFactor = Number($('zoom').value) || 1;
+    const span = d / zoomFactor;
+
+    let center = centerOnPlayhead ? video.currentTime : (viewStart + viewEnd) / 2;
+    if (!Number.isFinite(center)) center = video.currentTime || 0;
+
+    let start = clamp(center - span / 2, 0, Math.max(0, d - span));
+    let end = Math.min(d, start + span);
+    if (end - start < span && d >= span) start = Math.max(0, end - span);
+
+    applyTimelineWindow(start, end);
+  }
+
+  function moveZoomWindowToPlayhead(mode='center'){
+    const d = video.duration || 0;
+    if (!d) return;
+
+    zoomFactor = Number($('zoom').value) || 1;
+    const span = d / zoomFactor;
+    const t = clamp(video.currentTime || 0, 0, d);
+
+    let start;
+    if (mode === 'left'){
+      // "Continue from here": current playhead becomes the beginning of the
+      // zoomed timeline whenever there is enough clip remaining.
+      start = clamp(t, 0, Math.max(0, d - span));
+    } else {
+      start = clamp(t - span / 2, 0, Math.max(0, d - span));
+    }
+
+    const end = Math.min(d, start + span);
+    applyTimelineWindow(start, end);
+  }
+
+  function updateSelectionUI(){
+    const d = video.duration || 0;
+    if (!d) return;
+
+    inPoint = clamp(Number.isFinite(inPoint) ? inPoint : 0, 0, d);
+    outPoint = clamp(Number.isFinite(outPoint) ? outPoint : d, 0, d);
+    if (outPoint < inPoint) [inPoint, outPoint] = [outPoint, inPoint];
+
+    $('inReadout').textContent = fmt(inPoint);
+    $('outReadout').textContent = fmt(outPoint);
+    $('selectionDuration').textContent = fmt(Math.max(0, outPoint - inPoint));
+
+    const ovLeft = (inPoint / d) * 100;
+    const ovWidth = ((outPoint - inPoint) / d) * 100;
+    $('selectionOverview').style.left = `${ovLeft}%`;
+    $('selectionOverview').style.width = `${Math.max(0, ovWidth)}%`;
+
+    const span = Math.max(0.000001, viewEnd - viewStart);
+    const visibleIn = Math.max(inPoint, viewStart);
+    const visibleOut = Math.min(outPoint, viewEnd);
+    const hasVisibleSelection = visibleOut >= visibleIn;
+
+    if (hasVisibleSelection){
+      const left = ((visibleIn - viewStart) / span) * 100;
+      const width = ((visibleOut - visibleIn) / span) * 100;
+      $('fineSelection').style.display = 'block';
+      $('fineSelection').style.left = `${left}%`;
+      $('fineSelection').style.width = `${Math.max(0, width)}%`;
+    } else {
+      $('fineSelection').style.display = 'none';
+    }
+
+    if (inPoint >= viewStart && inPoint <= viewEnd){
+      $('inMarker').style.display = 'block';
+      $('inMarker').style.left = `${((inPoint - viewStart) / span) * 100}%`;
+    } else $('inMarker').style.display = 'none';
+
+    if (outPoint >= viewStart && outPoint <= viewEnd){
+      $('outMarker').style.display = 'block';
+      $('outMarker').style.left = `${((outPoint - viewStart) / span) * 100}%`;
+    } else $('outMarker').style.display = 'none';
+  }
+
+  function setInPoint(t = video.currentTime){
+    const d = video.duration || 0;
+    if (!d) return;
+    inPoint = clamp(t, 0, d);
+    if (outPoint <= inPoint) outPoint = d;
+    updateSelectionUI();
+    showToast(`In point: ${fmt(inPoint)}`);
+  }
+
+  function setOutPoint(t = video.currentTime){
+    const d = video.duration || 0;
+    if (!d) return;
+    outPoint = clamp(t, 0, d);
+    if (outPoint <= inPoint) inPoint = 0;
+    updateSelectionUI();
+    showToast(`Out point: ${fmt(outPoint)}`);
+  }
+
+  function setFullRange(){
+    const d = video.duration || 0;
+    if (!d) return;
+    inPoint = 0;
+    outPoint = d;
+    updateSelectionUI();
+    showToast('Selection set to full clip.');
+  }
+
+  function updateTimeUI(){
+    const d = video.duration || 0;
+    const t = video.currentTime || 0;
+    $('timecode').textContent = `${fmt(t)} / ${fmt(d)}`;
+    $('finePosition').textContent = fmt(t);
+    $('currentMeta').textContent = fmt(t);
+
+    if (playSelectionMode && !video.paused && t >= outPoint - 0.015){
+      video.pause();
+      video.currentTime = outPoint;
+      playSelectionMode = false;
+      updatePlayButton();
+    }
+
+    if (!scrubbingOverview) $('overview').value = t;
+
+    // The zoomed timeline window is intentionally FIXED. Playback or scrubbing
+    // never moves it automatically. If the playhead is outside the current
+    // zoom window, the fine scrubber simply rests at the nearest edge until
+    // the user deliberately repositions the window.
+    if (!scrubbingFine) $('fineTimeline').value = clamp(t, viewStart, viewEnd);
+  }
+
+  video.addEventListener('timeupdate', updateTimeUI);
+  video.addEventListener('seeked', updateTimeUI);
+
+
+  function applyViewerTransform(){
+    videoStage.style.transform = `translate(${viewerPanX}px, ${viewerPanY}px) scale(${viewerScale})`;
+    videoStage.classList.toggle('zoomed', viewerScale > 1.0001);
+    $('viewerZoomBadge').textContent = `${Math.round(viewerScale * 100)}%`;
+  }
+
+  function constrainViewerPan(){
+    const rect = videoDropTarget.getBoundingClientRect();
+    const scaledW = rect.width * viewerScale;
+    const scaledH = rect.height * viewerScale;
+
+    // Keep the zoomed stage covering the viewport. At 100% it is centered/reset.
+    if (viewerScale <= 1.0001){
+      viewerPanX = 0;
+      viewerPanY = 0;
+      return;
+    }
+
+    const minX = rect.width - scaledW;
+    const minY = rect.height - scaledH;
+    viewerPanX = clamp(viewerPanX, minX, 0);
+    viewerPanY = clamp(viewerPanY, minY, 0);
+  }
+
+  function resetViewerZoom(){
+    viewerScale = 1;
+    viewerPanX = 0;
+    viewerPanY = 0;
+    viewerDragging = false;
+    videoStage.classList.remove('dragging');
+    applyViewerTransform();
+  }
+
+  $('fitViewerBtn').addEventListener('click', resetViewerZoom);
+
+  videoDropTarget.addEventListener('wheel', e => {
+    if (!videoFile || mediaKind !== 'video') return;
+    e.preventDefault();
+
+    const rect = videoDropTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Pointer location expressed in the unscaled stage coordinate system.
+    const localX = (mouseX - viewerPanX) / viewerScale;
+    const localY = (mouseY - viewerPanY) / viewerScale;
+
+    const factor = e.deltaY < 0 ? 1.15 : (1 / 1.15);
+    const newScale = clamp(viewerScale * factor, VIEWER_MIN_SCALE, VIEWER_MAX_SCALE);
+
+    if (Math.abs(newScale - 1) < 0.001){
+      resetViewerZoom();
+      return;
+    }
+
+    // Reposition so the same source point remains under the mouse cursor.
+    viewerPanX = mouseX - localX * newScale;
+    viewerPanY = mouseY - localY * newScale;
+    viewerScale = newScale;
+
+    constrainViewerPan();
+    applyViewerTransform();
+  }, { passive:false });
+
+  videoDropTarget.addEventListener('pointerdown', e => {
+    if (!videoFile || mediaKind !== 'video' || viewerScale <= 1.0001 || e.button !== 0) return;
+    viewerDragging = true;
+    viewerDragStartX = e.clientX;
+    viewerDragStartY = e.clientY;
+    viewerDragOriginX = viewerPanX;
+    viewerDragOriginY = viewerPanY;
+    videoStage.classList.add('dragging');
+    try { videoDropTarget.setPointerCapture(e.pointerId); } catch(_) {}
+    e.preventDefault();
+  });
+
+  videoDropTarget.addEventListener('pointermove', e => {
+    if (!viewerDragging) return;
+    viewerPanX = viewerDragOriginX + (e.clientX - viewerDragStartX);
+    viewerPanY = viewerDragOriginY + (e.clientY - viewerDragStartY);
+    constrainViewerPan();
+    applyViewerTransform();
+  });
+
+  function endViewerDrag(e){
+    if (!viewerDragging) return;
+    viewerDragging = false;
+    videoStage.classList.remove('dragging');
+    try { videoDropTarget.releasePointerCapture(e.pointerId); } catch(_) {}
+  }
+
+  videoDropTarget.addEventListener('pointerup', endViewerDrag);
+  videoDropTarget.addEventListener('pointercancel', endViewerDrag);
+
+  // Convenient editing-app-style reset.
+  videoDropTarget.addEventListener('dblclick', () => {
+    if (videoFile && viewerScale > 1.0001) resetViewerZoom();
+  });
+
+  window.addEventListener('resize', () => {
+    if (viewerScale > 1.0001){
+      constrainViewerPan();
+      applyViewerTransform();
+    }
+  });
+
+
+  $('setInBtn').addEventListener('click', () => setInPoint());
+  $('setOutBtn').addEventListener('click', () => setOutPoint());
+  $('goInBtn').addEventListener('click', () => { video.currentTime = inPoint; });
+  $('goOutBtn').addEventListener('click', () => { video.currentTime = outPoint; });
+  $('fullRangeBtn').addEventListener('click', setFullRange);
+  $('playSelectionBtn').addEventListener('click', async () => {
+    if (!videoFile || outPoint <= inPoint) return;
+    video.currentTime = inPoint;
+    playSelectionMode = true;
+    try { await video.play(); } catch(_) { playSelectionMode = false; }
+  });
+
+  $('playBtn').addEventListener('click', async () => {
+    if (!videoFile) return;
+    playSelectionMode = false;
+    if (video.paused) {
+      try { await video.play(); } catch(e){ showToast('Playback could not start.', true); }
+    } else video.pause();
+  });
+
+  $('rewindBtn').addEventListener('click', () => video.currentTime = clamp(video.currentTime - 10, 0, video.duration || 0));
+  $('forwardBtn').addEventListener('click', () => video.currentTime = clamp(video.currentTime + 10, 0, video.duration || 0));
+
+  $('rateBtn').addEventListener('click', () => {
+    rateIndex = (rateIndex + 1) % playbackRates.length;
+    const r = playbackRates[rateIndex];
+    video.playbackRate = r;
+    $('rateBtn').textContent = `${r}×`;
+  });
+
+  $('overview').addEventListener('pointerdown', () => scrubbingOverview = true);
+  $('overview').addEventListener('pointerup', () => scrubbingOverview = false);
+  $('overview').addEventListener('input', e => {
+    video.currentTime = Number(e.target.value);
+    if (zoomFactor > 1) updateTimelineWindow(true);
+  });
+
+  $('fineTimeline').addEventListener('pointerdown', () => scrubbingFine = true);
+  $('fineTimeline').addEventListener('pointerup', () => scrubbingFine = false);
+  $('fineTimeline').addEventListener('input', e => {
+    video.currentTime = Number(e.target.value);
+    $('finePosition').textContent = fmt(video.currentTime);
+  });
+
+  $('zoom').addEventListener('input', () => updateTimelineWindow(true));
+  $('zoomInBtn').addEventListener('click', () => {
+    $('zoom').value = clamp(Number($('zoom').value) * 1.5, 1, 100);
+    updateTimelineWindow(true);
+  });
+  $('zoomOutBtn').addEventListener('click', () => {
+    $('zoom').value = clamp(Number($('zoom').value) / 1.5, 1, 100);
+    updateTimelineWindow(true);
+  });
+
+  $('centerZoomBtn').addEventListener('click', () => {
+    moveZoomWindowToPlayhead('center');
+    showToast('Zoom window centered on playhead.');
+  });
+
+  $('playheadLeftBtn').addEventListener('click', () => {
+    moveZoomWindowToPlayhead('left');
+    showToast('Playhead moved to the left edge of the zoom window.');
+  });
+
+  $('resetZoomBtn').addEventListener('click', () => {
+    $('zoom').value = 1;
+    updateTimelineWindow(true);
+  });
+
+  $('chooseVideoBtn').addEventListener('click', () => $('videoInput').click());
+  $('videoInput').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadVideoFile(file);
+    e.target.value = '';
+  });
+
+  function wireVideoDrop(el){
+    ['dragenter','dragover'].forEach(type => el.addEventListener(type, e => {
+      e.preventDefault(); e.stopPropagation(); $('videoDropZone').classList.add('drag');
+    }));
+    ['dragleave','drop'].forEach(type => el.addEventListener(type, e => {
+      e.preventDefault(); e.stopPropagation(); $('videoDropZone').classList.remove('drag');
+    }));
+    el.addEventListener('drop', e => {
+      const files = [...(e.dataTransfer?.files || [])];
+      const file = files.find(f => {
+        const t = f.type || '';
+        return t.startsWith('video/') || t.startsWith('audio/') ||
+          /\.(mp4|m4v|mov|webm|mkv|avi|mpg|mpeg|wmv|ogv|wav|mp3|flac|m4a|aac|ogg|opus|wma|aiff?|alac)$/i.test(f.name || '');
+      });
+      if (file) loadVideoFile(file);
+      else showToast('No playable video or audio file found in that drop.', true);
+    });
+  }
+  wireVideoDrop($('videoDropZone'));
+  wireVideoDrop($('videoDropTarget'));
+
+  async function selectOutputFolder(){
+    if (!('showDirectoryPicker' in window)){
+      showToast('Direct folder picking needs desktop Chrome or Edge. Captures will use Downloads.', true);
+      return;
+    }
+    try{
+      const handle = await window.showDirectoryPicker({ mode:'readwrite' });
+      const perm = await handle.requestPermission({ mode:'readwrite' });
+      if (perm !== 'granted') throw new Error('Folder permission not granted.');
+      outputDirHandle = handle;
+      $('folderName').textContent = handle.name;
+      updateStatus();
+      showToast(`Output folder: ${handle.name}`);
+    }catch(err){
+      if (err?.name !== 'AbortError') showToast(err?.message || 'Could not select folder.', true);
+    }
+  }
+  $('chooseFolderBtn').addEventListener('click', selectOutputFolder);
+
+  const folderDZ = $('folderDropZone');
+  ['dragenter','dragover'].forEach(type => folderDZ.addEventListener(type, e => {
+    e.preventDefault(); e.stopPropagation(); folderDZ.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(type => folderDZ.addEventListener(type, e => {
+    e.preventDefault(); e.stopPropagation(); folderDZ.classList.remove('drag');
+  }));
+
+  folderDZ.addEventListener('drop', async e => {
+    const items = [...(e.dataTransfer?.items || [])];
+    if (!items.length){ showToast('No folder detected.', true); return; }
+
+    if ('getAsFileSystemHandle' in DataTransferItem.prototype){
+      try{
+        for (const item of items){
+          if (item.kind !== 'file') continue;
+          const handle = await item.getAsFileSystemHandle();
+          if (handle?.kind === 'directory'){
+            const perm = await handle.requestPermission({ mode:'readwrite' });
+            if (perm !== 'granted') throw new Error('Folder permission not granted.');
+            outputDirHandle = handle;
+            $('folderName').textContent = handle.name;
+            updateStatus();
+            showToast(`Output folder: ${handle.name}`);
+            return;
+          }
+        }
+        showToast('That drop did not contain a folder.', true);
+      }catch(err){
+        showToast(err?.message || 'Could not use the dropped folder.', true);
+      }
+    } else {
+      showToast('Folder drag/drop is not supported here. Use “Choose Output Folder…” instead.', true);
+    }
+  });
+
+
+  function setEngineStatus(text, state=''){
+    $('engineStatus').textContent = text;
+    $('engineDot').className = `engine-dot${state ? ' ' + state : ''}`;
+  }
+
+  function setExportUIBusy(busy, label=''){
+    ffmpegRunning = busy;
+    $('exportMp4Btn').disabled = busy || !videoFile || mediaKind !== 'video' || !EXPORT_PROTOCOL_OK;
+    $('exportWavBtn').disabled = busy || !videoFile || !EXPORT_PROTOCOL_OK;
+    $('cancelExportBtn').style.display = busy ? 'inline-block' : 'none';
+    $('progressWrap').classList.toggle('show', busy);
+    if (busy){
+      $('progressBar').style.width = '0%';
+      $('progressPct').textContent = '';
+      $('progressLabel').textContent = label || 'Preparing…';
+      setEngineStatus('FFmpeg working', 'busy');
+    } else if (ffmpegReady){
+      setEngineStatus('FFmpeg ready', 'ready');
+    }
+  }
+
+  async function withTimeout(promise, ms, message){
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    try{
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function ensureFFmpeg(){
+    if (!EXPORT_PROTOCOL_OK){
+      throw new Error('MP4/WAV export requires the local launcher. Run Launch_ComfyUI_Media_Utility.bat.');
+    }
+    if (ffmpegReady && ffmpeg) return ffmpeg;
+    if (ffmpegLoadPromise) return ffmpegLoadPromise;
+
+    ffmpegLoadPromise = (async () => {
+      try{
+        setEngineStatus('Loading local FFmpeg engine…', 'busy');
+        $('progressWrap').classList.add('show');
+        $('progressLabel').textContent = 'Loading local FFmpeg engine…';
+        $('progressPct').textContent = '';
+
+        let mod;
+        try{
+          mod = await withTimeout(
+            import(`${FFMPEG_WRAPPER_BASE}/classes.js`),
+            15000,
+            'Timed out loading the local FFmpeg wrapper.'
+          );
+        }catch(err){
+          throw new Error(
+            'FFmpeg engine files are missing or incomplete. Close the app and run Setup_FFmpeg_Engine.bat, then relaunch.'
+          );
+        }
+
+        ffmpeg = new mod.FFmpeg();
+
+        ffmpeg.on('log', ({message}) => {
+          if (!ffmpegRunning) return;
+          const match = String(message || '').match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (match){
+            const t = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+            const len = Math.max(0.001, outPoint - inPoint);
+            const pct = clamp((t / len) * 100, 0, 99);
+            $('progressBar').style.width = `${pct}%`;
+            $('progressPct').textContent = `${Math.round(pct)}%`;
+          }
+        });
+
+        ffmpeg.on('progress', ({progress}) => {
+          if (!ffmpegRunning || !Number.isFinite(progress)) return;
+          const pct = clamp(progress * 100, 0, 99);
+          if (pct > 0){
+            $('progressBar').style.width = `${pct}%`;
+            $('progressPct').textContent = `${Math.round(pct)}%`;
+          }
+        });
+
+        const coreURL = new URL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, location.href).href;
+        const wasmURL = new URL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, location.href).href;
+
+        setEngineStatus('Starting FFmpeg worker…', 'busy');
+        $('progressLabel').textContent = 'Starting local FFmpeg worker…';
+
+        await withTimeout(
+          ffmpeg.load({ coreURL, wasmURL }),
+          30000,
+          'FFmpeg worker did not start. Run Setup_FFmpeg_Engine.bat to repair the local engine.'
+        );
+
+        ffmpegReady = true;
+        setEngineStatus('FFmpeg ready · local', 'ready');
+        $('progressWrap').classList.remove('show');
+        return ffmpeg;
+      }catch(err){
+        try{ ffmpeg?.terminate(); }catch(_){}
+        ffmpeg = null;
+        ffmpegReady = false;
+        ffmpegLoadPromise = null;
+        setEngineStatus('FFmpeg unavailable', 'error');
+        $('progressWrap').classList.remove('show');
+        throw err;
+      }
+    })();
+
+    return ffmpegLoadPromise;
+  }
+
+  async function prepareFFmpegInput(){
+    const engine = await ensureFFmpeg();
+    const stamp = Date.now().toString(36);
+    const mountPoint = `/input_${stamp}`;
+
+    // WORKERFS lets FFmpeg access the browser File without first copying the
+    // entire video into the WebAssembly virtual filesystem. This is especially
+    // useful for longer source videos.
+    try{
+      await engine.createDir(mountPoint);
+      await engine.mount('WORKERFS', {files:[videoFile]}, mountPoint);
+      return {
+        path: `${mountPoint}/${videoFile.name}`,
+        cleanup: async () => {
+          try{ await engine.unmount(mountPoint); }catch(_){}
+          try{ await engine.deleteDir(mountPoint); }catch(_){}
+        }
+      };
+    } catch(_){
+      const extMatch = (videoFile.name || '').match(/(\.[a-zA-Z0-9]{1,8})$/);
+      const ext = extMatch ? extMatch[1] : '.media';
+      const path = `input_${stamp}${ext}`;
+      const bytes = new Uint8Array(await videoFile.arrayBuffer());
+      await engine.writeFile(path, bytes);
+      return {
+        path,
+        cleanup: async () => { try{ await engine.deleteFile(path); }catch(_){} }
+      };
+    }
+  }
+
+  async function saveOutputBlob(blob, filename){
+    if (outputDirHandle){
+      let perm = await outputDirHandle.queryPermission({mode:'readwrite'});
+      if (perm !== 'granted') perm = await outputDirHandle.requestPermission({mode:'readwrite'});
+      if (perm !== 'granted') throw new Error('Output folder permission was not granted.');
+
+      const fh = await outputDirHandle.getFileHandle(filename, {create:true});
+      const writable = await fh.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return 'saved';
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return 'downloaded';
+  }
+
+  function clipFilename(kind, extension){
+    const stem = (videoFile?.name || 'video')
+      .replace(/\.[^.]+$/, '')
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g,'_');
+    return `${stem}_${kind}_${safeTimeForFilename(inPoint)}_to_${safeTimeForFilename(outPoint)}.${extension}`;
+  }
+
+  async function runExport(type){
+    if (!videoFile || ffmpegRunning) return;
+    if (type === 'mp4' && mediaKind !== 'video') {
+      showToast('MP4 export is available for video sources. Use WAV for audio files.', true);
+      return;
+    }
+    if (!(outPoint > inPoint)){
+      showToast('Set an Out point after the In point.', true);
+      return;
+    }
+
+    const duration = outPoint - inPoint;
+    let input = null;
+    let outputPath = null;
+
+    try{
+      setExportUIBusy(true, type === 'wav' ? 'Preparing WAV export…' : 'Preparing MP4 export…');
+      const engine = await ensureFFmpeg();
+      ffmpegAbortController = new AbortController();
+      input = await prepareFFmpegInput();
+
+      const stamp = Date.now().toString(36);
+      const start = inPoint.toFixed(6);
+      const len = duration.toFixed(6);
+
+      if (type === 'wav'){
+        outputPath = `output_${stamp}.wav`;
+        $('progressLabel').textContent = 'Extracting WAV audio…';
+
+        const ret = await engine.exec([
+          '-ss', start,
+          '-i', input.path,
+          '-t', len,
+          '-vn',
+          '-c:a', 'pcm_s16le',
+          '-ar', '48000',
+          outputPath
+        ], -1, {signal:ffmpegAbortController.signal});
+
+        if (ret !== 0) throw new Error(`FFmpeg WAV export failed (code ${ret}).`);
+
+        const data = await engine.readFile(outputPath);
+        $('progressBar').style.width = '100%';
+        $('progressPct').textContent = '100%';
+        const result = await saveOutputBlob(new Blob([data.buffer], {type:'audio/wav'}), clipFilename('audio', 'wav'));
+        showToast(`WAV ${result}.`);
+      } else {
+        outputPath = `output_${stamp}.mp4`;
+        const mode = $('mp4Mode').value;
+
+        let args;
+        if (mode === 'fast'){
+          $('progressLabel').textContent = 'Fast cutting MP4…';
+          args = [
+            '-ss', start,
+            '-i', input.path,
+            '-t', len,
+            '-map', '0:v:0?',
+            '-map', '0:a:0?',
+            '-c', 'copy',
+            '-avoid_negative_ts', 'make_zero',
+            '-movflags', '+faststart',
+            outputPath
+          ];
+        } else {
+          $('progressLabel').textContent = 'Encoding exact H.264 MP4…';
+          args = [
+            '-ss', start,
+            '-i', input.path,
+            '-t', len,
+            '-map', '0:v:0?',
+            '-map', '0:a:0?',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '18',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-movflags', '+faststart',
+            outputPath
+          ];
+        }
+
+        let ret = await engine.exec(args, -1, {signal:ffmpegAbortController.signal});
+
+        // Some source codecs/containers cannot simply be remuxed to MP4.
+        // In Fast mode, fall back automatically to an exact H.264 encode.
+        if (ret !== 0 && mode === 'fast'){
+          try{ await engine.deleteFile(outputPath); }catch(_){}
+          $('progressLabel').textContent = 'Fast copy incompatible — encoding H.264…';
+          $('progressBar').style.width = '0%';
+          $('progressPct').textContent = '';
+          ret = await engine.exec([
+            '-ss', start,
+            '-i', input.path,
+            '-t', len,
+            '-map', '0:v:0?',
+            '-map', '0:a:0?',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '18',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-movflags', '+faststart',
+            outputPath
+          ], -1, {signal:ffmpegAbortController.signal});
+        }
+
+        if (ret !== 0) throw new Error(`FFmpeg MP4 export failed (code ${ret}).`);
+
+        const data = await engine.readFile(outputPath);
+        $('progressBar').style.width = '100%';
+        $('progressPct').textContent = '100%';
+        const result = await saveOutputBlob(new Blob([data.buffer], {type:'video/mp4'}), clipFilename('clip', 'mp4'));
+        showToast(`MP4 ${result}.`);
+      }
+    } catch(err){
+      if (err?.name === 'AbortError'){
+        showToast('Export canceled.');
+      } else {
+        console.error(err);
+        showToast(err?.message || 'Export failed.', true);
+        if (!navigator.onLine){
+          showToast('FFmpeg needs internet access the first time its browser engine is loaded.', true);
+        }
+      }
+    } finally {
+      if (outputPath && ffmpegReady){
+        try{ await ffmpeg.deleteFile(outputPath); }catch(_){}
+      }
+      if (input?.cleanup) await input.cleanup();
+      ffmpegAbortController = null;
+      setExportUIBusy(false);
+    }
+  }
+
+  $('exportMp4Btn').addEventListener('click', () => runExport('mp4'));
+  $('exportWavBtn').addEventListener('click', () => runExport('wav'));
+
+  $('cancelExportBtn').addEventListener('click', () => {
+    if (!ffmpegRunning) return;
+    try{ ffmpegAbortController?.abort(); }catch(_){}
+    // exec cancellation can leave the worker busy; terminate it so the next
+    // export gets a clean FFmpeg instance.
+    try{ ffmpeg?.terminate(); }catch(_){}
+    ffmpeg = null;
+    ffmpegReady = false;
+    ffmpegLoadPromise = null;
+    setEngineStatus('FFmpeg will reload on next export');
+  });
+
+
+  async function captureFrame(){
+    if (!videoFile || mediaKind !== 'video' || !video.videoWidth || !video.videoHeight) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob){ showToast('Could not create PNG.', true); return; }
+
+    const stem = (videoFile.name || 'video').replace(/\.[^.]+$/, '').replace(/[<>:"/\\|?*\x00-\x1F]/g,'_');
+    const filename = `${stem}_${safeTimeForFilename(video.currentTime)}.png`;
+
+    try{
+      if (outputDirHandle){
+        const perm = await outputDirHandle.queryPermission({ mode:'readwrite' });
+        const finalPerm = perm === 'granted' ? perm : await outputDirHandle.requestPermission({ mode:'readwrite' });
+        if (finalPerm !== 'granted') throw new Error('Output folder permission was lost.');
+
+        const fh = await outputDirHandle.getFileHandle(filename, { create:true });
+        const writable = await fh.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        addCaptureLog(filename, true);
+        showToast(`Saved ${filename}`);
+      }else{
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        addCaptureLog(filename, false);
+        showToast(`Downloaded ${filename}`);
+      }
+    }catch(err){
+      showToast(err?.message || 'Could not save capture.', true);
+    }
+  }
+
+  function addCaptureLog(filename, direct){
+    captureCount++;
+    if (captureCount === 1) $('captureLog').innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'capture-item';
+    div.innerHTML = `<b>${direct ? 'Saved' : 'Downloaded'}</b> · ${escapeHTML(filename)}`;
+    $('captureLog').prepend(div);
+  }
+
+  function escapeHTML(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  $('captureBtn').addEventListener('click', captureFrame);
+
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'button') return;
+    if (!videoFile) return;
+
+    if (e.code === 'Space'){
+      e.preventDefault();
+      $('playBtn').click();
+    } else if (e.key === 'ArrowLeft'){
+      e.preventDefault();
+      video.currentTime = clamp(video.currentTime - (e.shiftKey ? 10 : 1), 0, video.duration || 0);
+    } else if (e.key === 'ArrowRight'){
+      e.preventDefault();
+      video.currentTime = clamp(video.currentTime + (e.shiftKey ? 10 : 1), 0, video.duration || 0);
+    } else if (e.key.toLowerCase() === 'i'){
+      e.preventDefault();
+      setInPoint();
+    } else if (e.key.toLowerCase() === 'o'){
+      e.preventDefault();
+      setOutPoint();
+    } else if (e.key.toLowerCase() === 'c'){
+      e.preventDefault();
+      captureFrame();
+    }
+  });
+
+  window.addEventListener('message', e => {
+    if (!e.data || e.data.type !== 'comfy-media-tab-visibility') return;
+    if (!e.data.visible) {
+      video.pause();
+      playSelectionMode = false;
+    }
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (videoURL) URL.revokeObjectURL(videoURL);
+    try{ ffmpeg?.terminate(); }catch(_){}
+  });
+
+  if (!EXPORT_PROTOCOL_OK){
+    $('protocolWarning').classList.add('show');
+    setEngineStatus('Use local launcher for export', 'error');
+  } else {
+    $('protocolWarning').classList.remove('show');
+  }
+
+  updateStatus();
+})();
+</script>
+</body>
+</html>
