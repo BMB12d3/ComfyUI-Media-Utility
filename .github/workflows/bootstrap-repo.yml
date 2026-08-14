@@ -21,6 +21,10 @@ jobs:
           set -euo pipefail
           cat .github/bootstrap/repo_payload.part* | base64 -d > /tmp/repo.zip
           unzip -o /tmp/repo.zip -d .
+          mkdir -p docs/screenshots
+          base64 -d .github/bootstrap/extract-trim.jpg.b64 > docs/screenshots/extract-trim.jpg
+          base64 -d .github/bootstrap/sort.jpg.b64 > docs/screenshots/sort.jpg
+          base64 -d .github/bootstrap/compare.jpg.b64 > docs/screenshots/compare.jpg
           rm -rf .github/bootstrap
           rm -f .github/workflows/bootstrap-repo.yml
           git config user.name "github-actions[bot]"
