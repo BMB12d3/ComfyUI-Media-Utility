@@ -21,10 +21,34 @@ jobs:
           set -euo pipefail
           cat .github/bootstrap/payload_xz.part* | base64 -d > /tmp/repo.tar.xz
           tar -xJf /tmp/repo.tar.xz -C .
+
           mkdir -p docs/screenshots
-          cat .github/bootstrap/screen_extract.part* | base64 -d > docs/screenshots/extract-trim.jpg
-          cat .github/bootstrap/screen_sort.part* | base64 -d > docs/screenshots/sort.jpg
-          cat .github/bootstrap/screen_compare.part* | base64 -d > docs/screenshots/compare.jpg
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/media-utility-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep 2
+
+          CHROME_BIN=""
+          for CANDIDATE in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$CANDIDATE" >/dev/null 2>&1; then
+              CHROME_BIN="$CANDIDATE"
+              break
+            fi
+          done
+
+          if [ -n "$CHROME_BIN" ]; then
+            "$CHROME_BIN" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1400,900 --screenshot=docs/screenshots/extract-trim.png http://127.0.0.1:8765/extract_trim.html || true
+            "$CHROME_BIN" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1400,900 --screenshot=docs/screenshots/sort.png http://127.0.0.1:8765/sort.html || true
+            "$CHROME_BIN" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1400,900 --screenshot=docs/screenshots/compare.png http://127.0.0.1:8765/compare.html || true
+          fi
+
+          # The prepared docs used .jpg paths during local packaging; normalize
+          # them to the PNG screenshots generated from the committed app code.
+          sed -i 's/extract-trim\.jpg/extract-trim.png/g; s/sort\.jpg/sort.png/g; s/compare\.jpg/compare.png/g' README.md docs/USER_GUIDE.md || true
+
+          kill $SERVER_PID 2>/dev/null || true
+          trap - EXIT
+
           rm -rf .github/bootstrap
           rm -f .github/workflows/bootstrap-repo.yml
           git config user.name "github-actions[bot]"
